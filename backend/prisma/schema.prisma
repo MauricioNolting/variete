@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Client {
+  id                  Int                   @id @default(autoincrement())
+  localName           String
+  address             String
+  cityId              Int?
+  phone               String                @unique
+  email               String?
+  cashbackBalance     Float                 @default(0)
+  totalCashbackEarned Float                 @default(0)
+  createdAt           DateTime              @default(now())
+  city                City?                 @relation(fields: [cityId], references: [id])
+  orders              Order[]
+  cashbackTransactions CashbackTransaction[]
+}
+
+model City {
+  id         Int               @id @default(autoincrement())
+  name       String            @unique
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  clients    Client[]
+  visitDates CityVisitDate[]
+}
+
+model CityVisitDate {
+  id     Int      @id @default(autoincrement())
+  cityId Int
+  date   DateTime
+  city   City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@unique([cityId, date])
+}
+
+model Category {
+  id                 Int              @id @default(autoincrement())
+  name               String           @unique
+  imageUrl           String?
+  cloudinaryPublicId String?
+  createdAt          DateTime         @default(now())
+  products           Product[]
+  cashbackRules      CashbackRule[]
+}
+
+model Product {
+  id               Int              @id @default(autoincrement())
+  name             String
+  description      String?
+  categoryId       Int
+  stock            Int              @default(0)
+  price            Float
+  images           Json             @default("[]")
+  mainImageIndex   Int              @default(0)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  category         Category         @relation(fields: [categoryId], references: [id])
+  orderItems       OrderItem[]
+  cashbackRules    CashbackRule[]
+}
+
+model CashbackRule {
+  id            Int               @id @default(autoincrement())
+  type          CashbackRuleType
+  percentage    Float
+  minAmount     Float?
+  startDate     DateTime?
+  endDate       DateTime?
+  specificDates Json?
+  categoryId    Int?
+  productId     Int?
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  category      Category?         @relation(fields: [categoryId], references: [id])
+  product       Product?          @relation(fields: [productId], references: [id])
+}
+
+enum CashbackRuleType {
+  GLOBAL
+  MIN_AMOUNT
+  DATE_RANGE
+  SPECIFIC_DATE
+  CATEGORY
+  PRODUCT
+}
+
+model GlobalCashbackConfig {
+  id               Int      @id @default(1)
+  stackRules       Boolean  @default(false)
+  maxPercentage    Float?
+  balanceExpiryDays Int?
+  updatedAt        DateTime @updatedAt
+}
+
+model CashbackTransaction {
+  id              Int                      @id @default(autoincrement())
+  clientId        Int
+  orderId         Int?
+  amount          Float
+  type            CashbackTransactionType
+  ruleDescription String?
+  createdAt       DateTime                 @default(now())
+  client          Client                   @relation(fields: [clientId], references: [id])
+  order           Order?                   @relation(fields: [orderId], references: [id])
+}
+
+enum CashbackTransactionType {
+  EARNED
+  USED
+}
+
+model Promotion {
+  id              Int           @id @default(autoincrement())
+  type            PromotionType
+  minAmount       Float?
+  minQuantity     Int?
+  productId       Int?
+  discountPercent Float
+  isActive        Boolean       @default(true)
+  description     String
+}
+
+enum PromotionType {
+  MIN_AMOUNT
+  MIN_QUANTITY
+}
+
+model Order {
+  id                   Int                   @id @default(autoincrement())
+  clientId             Int
+  status               OrderStatus           @default(PENDING)
+  deliveryDate         DateTime
+  preferredTimeRange   String
+  notes                String?
+  totalAmount          Float
+  cashbackUsed         Float                 @default(0)
+  cashbackEarned       Float                 @default(0)
+  createdAt            DateTime              @default(now())
+  client               Client                @relation(fields: [clientId], references: [id])
+  items                OrderItem[]
+  cashbackTransactions CashbackTransaction[]
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  unitPrice Float
+  subtotal  Float
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+}
+
+model GlobalConfig {
+  id                  Int     @id @default(1)
+  lowStockThreshold   Int     @default(10)
+  adminWhatsappNumber String  @default("")
+  emailFrom           String  @default("")
+}
