@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/auth';
 import { CityVisitDate } from '../types';
 import { formatCurrency, formatDateLong, TIME_RANGE_OPTIONS } from '../utils/format';
 import toast from 'react-hot-toast';
+import CashbackCelebration from '../components/CashbackCelebration';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ export default function CheckoutPage() {
   const [useCashback, setUseCashback] = useState(false);
   const [cashbackAmount, setCashbackAmount] = useState('');
   const [confirmed, setConfirmed] = useState(false);
+  const [celebrationAmount, setCelebrationAmount] = useState(0);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const subtotal = getSubtotal();
   const cashbackBalance = client?.cashbackBalance || 0;
@@ -55,6 +58,10 @@ export default function CheckoutPage() {
       if (client) {
         updateClient({ ...client, cashbackBalance: res.data.newCashbackBalance });
       }
+      if (res.data.order.cashbackEarned > 0) {
+        setCelebrationAmount(res.data.order.cashbackEarned);
+        setShowCelebration(true);
+      }
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error || 'Error al procesar el pedido.');
@@ -76,6 +83,10 @@ export default function CheckoutPage() {
   };
 
   if (confirmed) return (
+    <>
+      {showCelebration && celebrationAmount > 0 && (
+        <CashbackCelebration amount={celebrationAmount} onClose={() => setShowCelebration(false)} />
+      )}
     <div className="max-w-lg mx-auto px-4 py-16 text-center">
       <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12 }}>
         <div className="w-20 h-20 bg-emerald-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -95,6 +106,7 @@ export default function CheckoutPage() {
         </div>
       </motion.div>
     </div>
+    </>
   );
 
   if (items.length === 0) return (

@@ -25,6 +25,7 @@ import CitiesAdminPage from './pages/admin/CitiesAdminPage';
 import CashbackAdminPage from './pages/admin/CashbackAdminPage';
 import ClientsAdminPage from './pages/admin/ClientsAdminPage';
 import ConfigAdminPage from './pages/admin/ConfigAdminPage';
+import BillingAdminPage from './pages/admin/BillingAdminPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { role } = useAuthStore();
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="ciudades" element={<CitiesAdminPage />} />
         <Route path="cashback" element={<CashbackAdminPage />} />
         <Route path="clientes" element={<ClientsAdminPage />} />
+        <Route path="facturacion" element={<BillingAdminPage />} />
         <Route path="configuracion" element={<ConfigAdminPage />} />
       </Route>
 

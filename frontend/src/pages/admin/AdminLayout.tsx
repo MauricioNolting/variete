@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Package, Grid, MapPin, Gift, Settings, Users, ShoppingBag, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Grid, MapPin, Gift, Settings, Users, ShoppingBag, LogOut, TrendingUp } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 const navItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { path: '/admin/pedidos', icon: ShoppingBag, label: 'Pedidos' },
+  { path: '/admin/facturacion', icon: TrendingUp, label: 'Facturación' },
   { path: '/admin/productos', icon: Package, label: 'Productos' },
   { path: '/admin/categorias', icon: Grid, label: 'Categorías' },
   { path: '/admin/ciudades', icon: MapPin, label: 'Ciudades' },

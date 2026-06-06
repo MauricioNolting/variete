@@ -45,15 +45,31 @@ router.post('/calculate', async (req, res) => {
   }
 });
 
-// Client: get my cashback transactions
+// Client: get my cashback transactions + real available balance
 router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    const now = new Date();
     const transactions = await prisma.cashbackTransaction.findMany({
       where: { clientId: req.userId },
       include: { order: { select: { id: true, createdAt: true, totalAmount: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(transactions);
+
+    // Calcular saldo real (excluyendo vencidos)
+    const effectiveBalance = transactions.reduce((acc, t) => {
+      if (t.type === 'EARNED') {
+        if (!t.expiresAt || t.expiresAt > now) return acc + t.amount;
+        return acc; // vencido
+      }
+      return acc - t.amount; // USED
+    }, 0);
+
+    // Próximo vencimiento
+    const nextExpiry = transactions
+      .filter((t) => t.type === 'EARNED' && t.expiresAt && t.expiresAt > now)
+      .sort((a, b) => new Date(a.expiresAt!).getTime() - new Date(b.expiresAt!).getTime())[0];
+
+    res.json({ transactions, effectiveBalance: Math.max(0, effectiveBalance), nextExpiry });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el historial de beneficios.' });
   }

@@ -112,6 +112,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         },
       });
 
+      // Calcular fecha de vencimiento del saldo ganado
+      const cashbackConfig = await tx.globalCashbackConfig.findUnique({ where: { id: 1 } });
+      const expiresAt = cashbackConfig?.balanceExpiryDays
+        ? new Date(Date.now() + cashbackConfig.balanceExpiryDays * 24 * 60 * 60 * 1000)
+        : null;
+
       // Record cashback transactions
       if (cashbackEarned > 0) {
         await tx.cashbackTransaction.create({
@@ -121,6 +127,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
             amount: cashbackEarned,
             type: 'EARNED',
             ruleDescription,
+            expiresAt,
           },
         });
       }
@@ -299,6 +306,57 @@ router.get('/admin/stats', authenticateToken, requireAdmin, async (_req, res) =>
     });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener estadísticas.' });
+  }
+});
+
+// Admin: billing report
+router.get('/admin/billing', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { type = 'all', period = 'month', year, month, week } = req.query;
+
+    const now = new Date();
+    let dateFrom: Date | undefined;
+
+    if (period === 'week') {
+      dateFrom = new Date(now);
+      dateFrom.setDate(dateFrom.getDate() - 7);
+    } else if (period === 'month') {
+      dateFrom = new Date(now.getFullYear(), month ? Number(month) - 1 : now.getMonth(), 1);
+    } else if (period === 'year') {
+      dateFrom = new Date(year ? Number(year) : now.getFullYear(), 0, 1);
+    } else if (period === 'custom' && year && month) {
+      dateFrom = new Date(Number(year), Number(month) - 1, 1);
+    }
+
+    const statusFilter = type === 'paid'
+      ? { status: 'DELIVERED' as const }
+      : type === 'pending'
+      ? { status: { in: ['PENDING', 'PREPARING'] as const } }
+      : { status: { not: 'CANCELLED' as const } };
+
+    const where: Record<string, unknown> = { ...statusFilter };
+    if (dateFrom) where.createdAt = { gte: dateFrom };
+
+    const [orders, totals] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: { client: { include: { city: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.order.aggregate({
+        where,
+        _sum: { totalAmount: true },
+        _count: true,
+      }),
+    ]);
+
+    res.json({
+      orders,
+      total: totals._sum.totalAmount || 0,
+      count: totals._count,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener el reporte de facturación.' });
   }
 });
 

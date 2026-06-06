@@ -4,6 +4,7 @@ import { ShoppingBag, TrendingUp, AlertTriangle, Gift, Clock, CheckCircle } from
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/format';
 import { Link } from 'react-router-dom';
+import QRCodeDisplay from '../../components/QRCodeDisplay';
 
 export default function DashboardPage() {
   const { data: stats } = useQuery({
@@ -15,7 +16,7 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Pedidos pendientes', value: stats?.pendingOrders || 0, icon: Clock, color: 'text-gold-400', bg: 'bg-gold-600/20', link: '/admin/pedidos?status=PENDING' },
     { label: 'Pedidos del día', value: stats?.todayOrders || 0, icon: ShoppingBag, color: 'text-blue-400', bg: 'bg-blue-600/20', link: '/admin/pedidos' },
-    { label: 'Facturación semanal', value: formatCurrency(stats?.weekRevenue || 0), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-600/20', link: '/admin/pedidos' },
+    { label: 'Facturación semanal', value: formatCurrency(stats?.weekRevenue || 0), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-600/20', link: '/admin/facturacion' },
     { label: 'Saldo emitido total', value: formatCurrency(stats?.cashbackEmitted || 0), icon: Gift, color: 'text-purple-400', bg: 'bg-purple-600/20', link: '/admin/cashback' },
   ];
 
@@ -64,6 +65,11 @@ export default function DashboardPage() {
             {formatCurrency((stats?.cashbackEmitted || 0) - (stats?.cashbackUsed || 0))}
           </p>
         </div>
+      </div>
+
+      {/* QR Code */}
+      <div className="flex justify-end">
+        <QRCodeDisplay />
       </div>
 
       {/* Low stock */}

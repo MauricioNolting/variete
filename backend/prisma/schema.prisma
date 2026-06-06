@@ -114,6 +114,7 @@ model CashbackTransaction {
   amount          Float
   type            CashbackTransactionType
   ruleDescription String?
+  expiresAt       DateTime?
   createdAt       DateTime                 @default(now())
   client          Client                   @relation(fields: [clientId], references: [id])
   order           Order?                   @relation(fields: [orderId], references: [id])
