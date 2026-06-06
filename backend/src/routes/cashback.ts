@@ -169,17 +169,20 @@ router.delete('/rules/:id', authenticateToken, requireAdmin, async (req, res) =>
 router.put('/config', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { stackRules, maxPercentage, balanceExpiryDays } = req.body;
+    const { maxAmount } = req.body;
     const config = await prisma.globalCashbackConfig.upsert({
       where: { id: 1 },
       update: {
         stackRules: stackRules !== undefined ? Boolean(stackRules) : undefined,
-        maxPercentage: maxPercentage !== undefined ? Number(maxPercentage) : undefined,
-        balanceExpiryDays: balanceExpiryDays !== undefined ? Number(balanceExpiryDays) : undefined,
+        maxPercentage: maxPercentage !== undefined ? (maxPercentage ? Number(maxPercentage) : null) : undefined,
+        maxAmount: maxAmount !== undefined ? (maxAmount ? Number(maxAmount) : null) : undefined,
+        balanceExpiryDays: balanceExpiryDays !== undefined ? (balanceExpiryDays ? Number(balanceExpiryDays) : null) : undefined,
       },
       create: {
         id: 1,
         stackRules: Boolean(stackRules),
         maxPercentage: maxPercentage ? Number(maxPercentage) : null,
+        maxAmount: maxAmount ? Number(maxAmount) : null,
         balanceExpiryDays: balanceExpiryDays ? Number(balanceExpiryDays) : null,
       },
     });

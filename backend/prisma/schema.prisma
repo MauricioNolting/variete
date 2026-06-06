@@ -100,11 +100,12 @@ enum CashbackRuleType {
 }
 
 model GlobalCashbackConfig {
-  id               Int      @id @default(1)
-  stackRules       Boolean  @default(false)
-  maxPercentage    Float?
+  id                Int      @id @default(1)
+  stackRules        Boolean  @default(false)
+  maxPercentage     Float?
+  maxAmount         Float?
   balanceExpiryDays Int?
-  updatedAt        DateTime @updatedAt
+  updatedAt         DateTime @updatedAt
 }
 
 model CashbackTransaction {
@@ -180,4 +181,8 @@ model GlobalConfig {
   lowStockThreshold   Int     @default(10)
   adminWhatsappNumber String  @default("")
   emailFrom           String  @default("")
+  bronzeThreshold     Float   @default(1000)
+  silverThreshold     Float   @default(5000)
+  goldThreshold       Float   @default(15000)
 }
+

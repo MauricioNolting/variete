@@ -82,11 +82,12 @@ export default function CashbackAdminPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['cashback-rules'] }); toast.success('Regla eliminada exitosamente.'); },
   });
 
-  const [configForm, setConfigForm] = useState({ stackRules: false, maxPercentage: '', balanceExpiryDays: '' });
+  const [configForm, setConfigForm] = useState({ stackRules: false, maxPercentage: '', maxAmount: '', balanceExpiryDays: '' });
   const configMutation = useMutation({
     mutationFn: () => api.put('/cashback/config', {
       stackRules: configForm.stackRules,
       maxPercentage: configForm.maxPercentage ? Number(configForm.maxPercentage) : null,
+      maxAmount: configForm.maxAmount ? Number(configForm.maxAmount) : null,
       balanceExpiryDays: configForm.balanceExpiryDays ? Number(configForm.balanceExpiryDays) : null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['cashback-config'] }); toast.success('Configuración actualizada.'); setConfigOpen(false); },
@@ -96,6 +97,7 @@ export default function CashbackAdminPage() {
     setConfigForm({
       stackRules: config?.stackRules || false,
       maxPercentage: config?.maxPercentage ? String(config.maxPercentage) : '',
+      maxAmount: (config as any)?.maxAmount ? String((config as any).maxAmount) : '',
       balanceExpiryDays: config?.balanceExpiryDays ? String(config.balanceExpiryDays) : '',
     });
     setConfigOpen(true);
@@ -271,9 +273,14 @@ export default function CashbackAdminPage() {
               {configForm.stackRules && (
                 <div>
                   <label className="label">Porcentaje máximo acumulable (%)</label>
-                  <input type="number" value={configForm.maxPercentage} onChange={(e) => setConfigForm((f) => ({ ...f, maxPercentage: e.target.value }))} placeholder="20" />
+                  <input type="number" value={configForm.maxPercentage} onChange={(e) => setConfigForm((f) => ({ ...f, maxPercentage: e.target.value }))} placeholder="Ej: 20 (sin límite si se deja vacío)" />
                 </div>
               )}
+              <div>
+                <label className="label">Monto máximo de beneficio por compra ($)</label>
+                <input type="number" value={configForm.maxAmount} onChange={(e) => setConfigForm((f) => ({ ...f, maxAmount: e.target.value }))} placeholder="Ej: 2000 (sin límite si se deja vacío)" />
+                <p className="text-xs text-dark-500 mt-1">Independientemente del %, el beneficio nunca superará este monto por pedido</p>
+              </div>
               <div>
                 <label className="label">Días de vigencia del saldo</label>
                 <input type="number" value={configForm.balanceExpiryDays} onChange={(e) => setConfigForm((f) => ({ ...f, balanceExpiryDays: e.target.value }))} placeholder="Sin vencimiento" min="1" />

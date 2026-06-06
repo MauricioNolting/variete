@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "GlobalCashbackConfig" ADD COLUMN     "maxAmount" DOUBLE PRECISION;
+
+-- AlterTable
+ALTER TABLE "GlobalConfig" ADD COLUMN     "bronzeThreshold" DOUBLE PRECISION NOT NULL DEFAULT 1000,
+ADD COLUMN     "goldThreshold" DOUBLE PRECISION NOT NULL DEFAULT 15000,
+ADD COLUMN     "silverThreshold" DOUBLE PRECISION NOT NULL DEFAULT 5000;

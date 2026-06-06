@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Save, MessageSquare, Mail, AlertTriangle } from 'lucide-react';
+import { Save, MessageSquare, Mail, AlertTriangle, Award } from 'lucide-react';
 import api from '../../utils/api';
 import { GlobalConfig } from '../../types';
 import toast from 'react-hot-toast';
 
 export default function ConfigAdminPage() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ lowStockThreshold: '10', adminWhatsappNumber: '', emailFrom: '' });
+  const [form, setForm] = useState({
+    lowStockThreshold: '10',
+    adminWhatsappNumber: '',
+    emailFrom: '',
+    bronzeThreshold: '1000',
+    silverThreshold: '5000',
+    goldThreshold: '15000',
+  });
 
   const { data: config } = useQuery<GlobalConfig>({
     queryKey: ['global-config'],
@@ -21,6 +28,9 @@ export default function ConfigAdminPage() {
         lowStockThreshold: String(config.lowStockThreshold),
         adminWhatsappNumber: config.adminWhatsappNumber || '',
         emailFrom: config.emailFrom || '',
+        bronzeThreshold: String((config as any).bronzeThreshold || 1000),
+        silverThreshold: String((config as any).silverThreshold || 5000),
+        goldThreshold: String((config as any).goldThreshold || 15000),
       });
     }
   }, [config]);
@@ -30,8 +40,15 @@ export default function ConfigAdminPage() {
       lowStockThreshold: Number(form.lowStockThreshold),
       adminWhatsappNumber: form.adminWhatsappNumber,
       emailFrom: form.emailFrom,
+      bronzeThreshold: Number(form.bronzeThreshold),
+      silverThreshold: Number(form.silverThreshold),
+      goldThreshold: Number(form.goldThreshold),
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['global-config'] }); toast.success('Configuración actualizada exitosamente.'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['global-config'] });
+      qc.invalidateQueries({ queryKey: ['tiers'] });
+      toast.success('Configuración actualizada exitosamente.');
+    },
     onError: () => toast.error('Error al guardar la configuración.'),
   });
 
@@ -42,52 +59,78 @@ export default function ConfigAdminPage() {
         <p className="text-dark-400 text-sm">Parámetros generales de la plataforma</p>
       </div>
 
+      {/* General */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="card p-6 space-y-5">
-        {/* WhatsApp */}
+        <h3 className="font-semibold text-dark-200 border-b border-dark-800 pb-3">General</h3>
+
         <div>
           <label className="label flex items-center gap-2">
             <MessageSquare size={16} className="text-gold-500" /> Número de WhatsApp del administrador
           </label>
-          <input
-            value={form.adminWhatsappNumber}
-            onChange={(e) => setForm((f) => ({ ...f, adminWhatsappNumber: e.target.value }))}
-            placeholder="whatsapp:+5491100000000"
-          />
+          <input value={form.adminWhatsappNumber} onChange={(e) => setForm((f) => ({ ...f, adminWhatsappNumber: e.target.value }))} placeholder="whatsapp:+5491100000000" />
           <p className="text-xs text-dark-500 mt-1">Formato: whatsapp:+54XXXXXXXXXX — Recibe notificaciones de nuevos pedidos</p>
         </div>
 
-        {/* Email */}
         <div>
           <label className="label flex items-center gap-2">
             <Mail size={16} className="text-gold-500" /> Email de origen
           </label>
-          <input
-            value={form.emailFrom}
-            onChange={(e) => setForm((f) => ({ ...f, emailFrom: e.target.value }))}
-            placeholder='Varieté <noreply@variete.com>'
-          />
+          <input value={form.emailFrom} onChange={(e) => setForm((f) => ({ ...f, emailFrom: e.target.value }))} placeholder='Varieté <noreply@variete.com>' />
           <p className="text-xs text-dark-500 mt-1">Nombre y dirección que verán los clientes al recibir emails</p>
         </div>
 
-        {/* Low stock threshold */}
         <div>
           <label className="label flex items-center gap-2">
             <AlertTriangle size={16} className="text-gold-500" /> Umbral de stock bajo
           </label>
-          <input
-            type="number"
-            value={form.lowStockThreshold}
-            onChange={(e) => setForm((f) => ({ ...f, lowStockThreshold: e.target.value }))}
-            min="1"
-            placeholder="10"
-          />
-          <p className="text-xs text-dark-500 mt-1">Productos con stock igual o menor a este valor aparecerán como "stock bajo" en el dashboard</p>
+          <input type="number" value={form.lowStockThreshold} onChange={(e) => setForm((f) => ({ ...f, lowStockThreshold: e.target.value }))} min="1" placeholder="10" />
+          <p className="text-xs text-dark-500 mt-1">Productos con stock igual o menor aparecerán como alerta en el dashboard</p>
+        </div>
+      </motion.div>
+
+      {/* Tiers */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6 space-y-5">
+        <h3 className="font-semibold text-dark-200 border-b border-dark-800 pb-3 flex items-center gap-2">
+          <Award size={18} className="text-gold-500" /> Categorías de clientes
+        </h3>
+        <p className="text-xs text-dark-400">Los clientes se clasifican según el beneficio acumulado histórico total.</p>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span className="text-amber-600 font-bold">🥉</span> Hasta Bronce ($)
+            </label>
+            <input type="number" value={form.bronzeThreshold}
+              onChange={(e) => setForm((f) => ({ ...f, bronzeThreshold: e.target.value }))} min="1" />
+            <p className="text-xs text-dark-500 mt-1">Acumulado menor a este valor</p>
+          </div>
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span className="text-gray-300 font-bold">🥈</span> Hasta Plata ($)
+            </label>
+            <input type="number" value={form.silverThreshold}
+              onChange={(e) => setForm((f) => ({ ...f, silverThreshold: e.target.value }))} min="1" />
+            <p className="text-xs text-dark-500 mt-1">Entre Bronce y este valor</p>
+          </div>
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <span className="text-yellow-400 font-bold">🥇</span> Oro desde ($)
+            </label>
+            <input type="number" value={form.goldThreshold}
+              onChange={(e) => setForm((f) => ({ ...f, goldThreshold: e.target.value }))} min="1" />
+            <p className="text-xs text-dark-500 mt-1">Acumulado mayor a este valor</p>
+          </div>
         </div>
 
-        <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary w-full">
-          <Save size={18} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
-        </button>
+        <div className="bg-dark-800 rounded-xl p-3 text-xs text-dark-400">
+          <p>Ejemplo con valores actuales:</p>
+          <p className="mt-1">🥉 Bronce: &lt; ${Number(form.bronzeThreshold).toLocaleString()} &nbsp;|&nbsp; 🥈 Plata: ${Number(form.bronzeThreshold).toLocaleString()} – ${Number(form.silverThreshold).toLocaleString()} &nbsp;|&nbsp; 🥇 Oro: &gt; ${Number(form.goldThreshold).toLocaleString()}</p>
+        </div>
       </motion.div>
+
+      <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary w-full">
+        <Save size={18} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
+      </button>
     </div>
   );
 }

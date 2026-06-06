@@ -32,10 +32,23 @@ export function daysUntil(dateStr: string): number {
   return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export function getCashbackTier(totalEarned: number): { label: string; color: string; next?: string } {
-  if (totalEarned >= 5000) return { label: 'Categoría Oro', color: 'text-yellow-400' };
-  if (totalEarned >= 1000) return { label: 'Categoría Plata', color: 'text-gray-300', next: `$${(5000 - totalEarned).toFixed(0)} para Oro` };
-  return { label: 'Categoría Bronce', color: 'text-amber-600', next: `$${(1000 - totalEarned).toFixed(0)} para Plata` };
+export function getCashbackTier(
+  totalEarned: number,
+  thresholds = { bronze: 1000, silver: 5000, gold: 15000 }
+): { label: string; color: string; emoji: string; next?: string } {
+  if (totalEarned >= thresholds.gold) return { label: 'Categoría Oro', color: 'text-yellow-400', emoji: '🥇' };
+  if (totalEarned >= thresholds.silver) return {
+    label: 'Categoría Plata', color: 'text-gray-300', emoji: '🥈',
+    next: `$${(thresholds.gold - totalEarned).toFixed(0)} para Oro`,
+  };
+  if (totalEarned >= thresholds.bronze) return {
+    label: 'Categoría Plata', color: 'text-gray-300', emoji: '🥈',
+    next: `$${(thresholds.gold - totalEarned).toFixed(0)} para Oro`,
+  };
+  return {
+    label: 'Categoría Bronce', color: 'text-amber-600', emoji: '🥉',
+    next: `$${(thresholds.silver - totalEarned).toFixed(0)} para Plata`,
+  };
 }
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {

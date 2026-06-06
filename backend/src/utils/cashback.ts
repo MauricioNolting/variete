@@ -83,7 +83,13 @@ export async function calculateCashback(
     ruleDescription = ruleTypeLabel(best.rule);
   }
 
-  const amount = (orderTotal * finalPercentage) / 100;
+  let amount = (orderTotal * finalPercentage) / 100;
+
+  // Aplicar tope de monto exacto si está configurado
+  if (config?.maxAmount && amount > config.maxAmount) {
+    amount = config.maxAmount;
+  }
+
   return { percentage: finalPercentage, amount, ruleDescription };
 }
 
