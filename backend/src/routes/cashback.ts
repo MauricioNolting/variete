@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middlewares/auth';
 import { calculateCashback } from '../utils/cashback';
+import { calculateClientTier } from '../utils/tiers';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -30,15 +31,18 @@ router.get('/config', async (_req, res) => {
   }
 });
 
-// Public: calculate cashback for a cart
-router.post('/calculate', async (req, res) => {
+// Authenticated: calculate cashback preview for a cart (includes tier benefits)
+router.post('/calculate', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { items, orderTotal } = req.body;
     if (!items || orderTotal === undefined) {
       res.status(400).json({ error: 'Se requieren los ítems y el total del pedido.' });
       return;
     }
-    const result = await calculateCashback(items, Number(orderTotal));
+    // Include the client's tier benefits in the preview calculation
+    const tierResult = await calculateClientTier(req.userId!).catch(() => null);
+    const clientTier = tierResult?.tier;
+    const result = await calculateCashback(items, Number(orderTotal), new Date(), clientTier);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Error al calcular beneficios.' });

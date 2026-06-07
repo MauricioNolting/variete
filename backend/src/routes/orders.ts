@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middlewares/auth';
 import { calculateCashback } from '../utils/cashback';
+import { calculateClientTier } from '../utils/tiers';
 import { sendWhatsAppToAdmin, sendOrderConfirmationEmail, sendOrderStatusEmail } from '../utils/notifications';
 
 const router = Router();
@@ -61,11 +62,16 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
 
     const totalAmount = subtotalBeforeCashback - cashbackUsed;
 
-    // Calculate cashback earned
+    // Get client tier for tier-based cashback benefits
+    const tierResult = await calculateClientTier(client.id).catch(() => null);
+    const clientTier = tierResult?.tier;
+
+    // Calculate cashback earned (includes tier benefits if applicable)
     const { amount: cashbackEarned, ruleDescription } = await calculateCashback(
       orderItems,
       totalAmount,
-      new Date()
+      new Date(),
+      clientTier
     );
 
     // Create order in transaction

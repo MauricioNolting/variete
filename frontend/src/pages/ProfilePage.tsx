@@ -170,45 +170,51 @@ export default function ProfilePage() {
         </div>
       </motion.div>
 
-      {/* Tier benefits */}
-      {tierBenefits.length > 0 && (
+      {/* Tier benefits — always shown once tier is known */}
+      {tierData?.tier && (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="card p-5 space-y-3">
           <h3 className="font-semibold text-dark-100 flex items-center gap-2">
-            <Star size={16} className="text-gold-500" /> Sus beneficios por categoría
+            <Star size={16} className="text-gold-500" /> Beneficios por categoría
           </h3>
-          <div className="space-y-2">
-            {tierBenefits.map((b) => {
-              const meta = TIER_META[b.tier];
-              const isOwn = b.tier === tierData?.tier;
-              const isHigher = (b.tier === 'GOLD' && tierData?.tier !== 'GOLD') ||
-                               (b.tier === 'SILVER' && tierData?.tier === 'BRONZE');
-              return (
-                <div key={b.id}
-                  className={`flex items-start gap-3 p-3 rounded-xl ${isOwn ? 'bg-dark-800' : 'bg-dark-900/50'}`}>
-                  <span className="text-base flex-shrink-0 mt-0.5">{meta.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${isHigher ? 'text-dark-400' : 'text-dark-100'}`}>
-                      {isHigher && <Lock size={12} className="inline mr-1 mb-0.5" />}
-                      Por ser <span className={meta.color}>{meta.label}</span>:{' '}
-                      {b.title}
-                      {b.percentage && (
-                        <span className={`ml-1 font-bold ${meta.color}`}>{b.percentage}%</span>
-                      )}
-                    </p>
-                    {b.description && (
-                      <p className="text-xs text-dark-500 mt-0.5">{b.description}</p>
-                    )}
-                    {isHigher && (
-                      <p className="text-xs text-dark-600 mt-0.5 italic">
-                        Suba a {meta.label} para desbloquear este beneficio
+          {tierBenefits.length === 0 ? (
+            <p className="text-sm text-dark-500 italic py-2">
+              No hay beneficios de categoría configurados aún.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {tierBenefits.map((b) => {
+                const meta = TIER_META[b.tier];
+                const isOwn = b.tier === tierData?.tier;
+                const isHigher = (b.tier === 'GOLD' && tierData?.tier !== 'GOLD') ||
+                                 (b.tier === 'SILVER' && tierData?.tier === 'BRONZE');
+                return (
+                  <div key={b.id}
+                    className={`flex items-start gap-3 p-3 rounded-xl ${isOwn ? 'bg-dark-800' : 'bg-dark-900/50'}`}>
+                    <span className="text-base flex-shrink-0 mt-0.5">{meta.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${isHigher ? 'text-dark-400' : 'text-dark-100'}`}>
+                        {isHigher && <Lock size={12} className="inline mr-1 mb-0.5" />}
+                        Por ser <span className={meta.color}>{meta.label}</span>:{' '}
+                        {b.title}
+                        {b.percentage ? (
+                          <span className={`ml-1 font-bold ${meta.color}`}>{b.percentage}%</span>
+                        ) : null}
                       </p>
-                    )}
+                      {b.description && (
+                        <p className="text-xs text-dark-500 mt-0.5">{b.description}</p>
+                      )}
+                      {isHigher && (
+                        <p className="text-xs text-dark-600 mt-0.5 italic">
+                          Suba a {meta.label} para desbloquear este beneficio
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </motion.div>
       )}
 
