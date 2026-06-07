@@ -322,20 +322,25 @@ router.get('/admin/stats', authenticateToken, requireAdmin, async (_req, res) =>
 // Admin: billing report
 router.get('/admin/billing', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { type = 'all', period = 'month', year, month, week } = req.query;
+    const { type = 'all', period = 'month', year, month } = req.query;
 
     const now = new Date();
+    const y = year ? Number(year) : now.getFullYear();
+    const m = month ? Number(month) - 1 : now.getMonth(); // 0-based
+
     let dateFrom: Date | undefined;
+    let dateTo: Date | undefined;
 
     if (period === 'week') {
       dateFrom = new Date(now);
       dateFrom.setDate(dateFrom.getDate() - 7);
+      // no upper bound — up to now
     } else if (period === 'month') {
-      dateFrom = new Date(now.getFullYear(), month ? Number(month) - 1 : now.getMonth(), 1);
+      dateFrom = new Date(y, m, 1);
+      dateTo   = new Date(y, m + 1, 1);   // exclusive: 1st of next month
     } else if (period === 'year') {
-      dateFrom = new Date(year ? Number(year) : now.getFullYear(), 0, 1);
-    } else if (period === 'custom' && year && month) {
-      dateFrom = new Date(Number(year), Number(month) - 1, 1);
+      dateFrom = new Date(y, 0, 1);
+      dateTo   = new Date(y + 1, 0, 1);   // exclusive: Jan 1 of next year
     }
 
     const statusFilter = type === 'paid'
@@ -345,7 +350,11 @@ router.get('/admin/billing', authenticateToken, requireAdmin, async (req, res) =
       : { status: { not: 'CANCELLED' as const } };
 
     const where: Record<string, unknown> = { ...statusFilter };
-    if (dateFrom) where.createdAt = { gte: dateFrom };
+    if (dateFrom && dateTo) {
+      where.createdAt = { gte: dateFrom, lt: dateTo };
+    } else if (dateFrom) {
+      where.createdAt = { gte: dateFrom };
+    }
 
     const [orders, totals] = await Promise.all([
       prisma.order.findMany({
