@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle, Clock, Star, Lock } from 'lucide-react';
+import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle, Clock, Star, Lock, CalendarClock } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
@@ -70,6 +70,8 @@ export default function ProfilePage() {
   const transactions: CashbackTransaction[] = cashbackData?.transactions || [];
   const effectiveBalance = cashbackData?.effectiveBalance ?? client?.cashbackBalance ?? 0;
   const nextExpiry = cashbackData?.nextExpiry;
+  const pendingExpirations: { expiresAt: string; amount: number; ordersCount: number }[] =
+    cashbackData?.pendingExpirations || [];
 
   // Build cumulative step chart — only EARNED, ascending, with starting zero point
   const earnedSorted = [...transactions]
@@ -307,6 +309,75 @@ export default function ProfilePage() {
       {/* Cashback tab */}
       {activeTab === 'cashback' && (
         <div className="space-y-5">
+
+          {/* ── Saldos a vencer ─────────────────────────────────────── */}
+          {pendingExpirations.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card p-5 space-y-3"
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock size={18} className="text-amber-400" />
+                <h3 className="font-semibold text-dark-100">Saldos a vencer</h3>
+              </div>
+              <p className="text-xs text-dark-500">
+                Tu saldo disponible total es {' '}
+                <span className="text-emerald-400 font-semibold">{formatCurrency(effectiveBalance)}</span>.
+                A continuación el detalle de cada lote y cuándo vence:
+              </p>
+              <div className="space-y-2">
+                {pendingExpirations.map((exp, i) => {
+                  const expDate = new Date(exp.expiresAt);
+                  const now = new Date();
+                  const daysLeft = Math.ceil((expDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                  const isUrgent = daysLeft <= 7;
+                  const isSoon   = daysLeft <= 30;
+                  return (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                        isUrgent ? 'bg-red-950/30 border border-red-700/30'
+                        : isSoon  ? 'bg-amber-950/30 border border-amber-700/30'
+                        :            'bg-dark-800/60 border border-dark-700/30'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <CalendarClock
+                          size={16}
+                          className={isUrgent ? 'text-red-400' : isSoon ? 'text-amber-400' : 'text-dark-400'}
+                        />
+                        <div>
+                          <p className={`text-sm font-medium ${
+                            isUrgent ? 'text-red-300' : isSoon ? 'text-amber-300' : 'text-dark-200'
+                          }`}>
+                            Vence el {expDate.toLocaleDateString('es-AR', {
+                              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                            })}
+                          </p>
+                          <p className={`text-xs ${
+                            isUrgent ? 'text-red-500' : isSoon ? 'text-amber-500' : 'text-dark-500'
+                          }`}>
+                            {daysLeft === 1
+                              ? '¡Vence mañana!'
+                              : daysLeft <= 0
+                              ? '¡Vence hoy!'
+                              : `En ${daysLeft} días`}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`font-black text-lg ${
+                        isUrgent ? 'text-red-400' : isSoon ? 'text-amber-400' : 'text-emerald-400'
+                      }`}>
+                        {formatCurrency(exp.amount)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
           {cashbackChartData.length > 1 && (
             <div className="card p-5">
               <h3 className="font-semibold text-dark-100 flex items-center gap-2 mb-4">

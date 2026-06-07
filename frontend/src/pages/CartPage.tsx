@@ -12,7 +12,15 @@ export default function CartPage() {
   const { items, removeItem, updateQuantity, getSubtotal, useCashback, cashbackToUse, setCashbackUsage } = useCartStore();
   const { client } = useAuthStore();
   const subtotal = getSubtotal();
-  const cashbackBalance = client?.cashbackBalance || 0;
+
+  // Use server-computed effective balance (respects cashback expiry)
+  const { data: balanceData } = useQuery({
+    queryKey: ['my-cashback-balance'],
+    queryFn: () => api.get('/cashback/my/transactions').then((r) => r.data),
+    enabled: !!client,
+    staleTime: 30_000,
+  });
+  const cashbackBalance: number = balanceData?.effectiveBalance ?? client?.cashbackBalance ?? 0;
 
   // Local input state for cashback amount
   const [cashbackInput, setCashbackInput] = useState(cashbackToUse > 0 ? String(cashbackToUse) : '');

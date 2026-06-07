@@ -49,7 +49,7 @@ router.post('/calculate', authenticateToken, async (req: AuthRequest, res: Respo
   }
 });
 
-// Client: get my cashback transactions + real available balance
+// Client: get my cashback transactions + real available balance + pending expirations
 router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const now = new Date();
@@ -68,12 +68,36 @@ router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: 
       return acc - t.amount; // USED
     }, 0);
 
-    // Próximo vencimiento
+    // Próximo vencimiento (para alerta rápida)
     const nextExpiry = transactions
       .filter((t) => t.type === 'EARNED' && t.expiresAt && t.expiresAt > now)
       .sort((a, b) => new Date(a.expiresAt!).getTime() - new Date(b.expiresAt!).getTime())[0];
 
-    res.json({ transactions, effectiveBalance: Math.max(0, effectiveBalance), nextExpiry });
+    // Saldos a vencer: todos los lotes EARNED activos con fecha de vencimiento futura
+    // Agrupados por fecha de vencimiento para mayor claridad
+    const activeEarned = transactions.filter(
+      (t) => t.type === 'EARNED' && t.expiresAt && t.expiresAt > now
+    );
+
+    // Group by expiresAt date string
+    const grouped: Record<string, { expiresAt: Date; amount: number; ordersCount: number }> = {};
+    for (const t of activeEarned) {
+      const key = t.expiresAt!.toISOString().split('T')[0];
+      if (!grouped[key]) {
+        grouped[key] = { expiresAt: t.expiresAt!, amount: 0, ordersCount: 0 };
+      }
+      grouped[key].amount += t.amount;
+      grouped[key].ordersCount += 1;
+    }
+    const pendingExpirations = Object.values(grouped)
+      .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+
+    res.json({
+      transactions,
+      effectiveBalance: Math.max(0, effectiveBalance),
+      nextExpiry,
+      pendingExpirations,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener el historial de beneficios.' });
   }

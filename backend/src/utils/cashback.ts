@@ -33,6 +33,7 @@ export async function calculateCashback(
         applies = rule.minAmount !== null && orderTotal >= rule.minAmount;
         break;
       case 'DATE_RANGE':
+        // For DATE_RANGE, start/end dates define when the rule applies
         if (rule.startDate && rule.endDate) {
           applies = orderDate >= rule.startDate && orderDate <= rule.endDate;
         }
@@ -52,6 +53,13 @@ export async function calculateCashback(
         if (rule.productId) applies = items.some((i) => i.productId === rule.productId);
         break;
     }
+
+    // For non-DATE_RANGE rules: optionally restrict by validity window
+    if (applies && rule.type !== 'DATE_RANGE') {
+      if (rule.startDate && orderDate < rule.startDate) applies = false;
+      if (rule.endDate   && orderDate > rule.endDate)   applies = false;
+    }
+
     if (applies) applicableRules.push({ rule, percentage: rule.percentage });
   }
 
