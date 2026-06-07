@@ -107,7 +107,12 @@ export default function CheckoutPage() {
         <p className="text-dark-400 mb-6">Recibirá una confirmación por email. El pago se realiza al momento de recibir el pedido.</p>
         {cashbackCalc?.amount > 0 && (
           <div className="card p-4 mb-6 border-emerald-600/30">
-            <p className="text-emerald-400 font-semibold">Beneficio acumulado en esta compra: {formatCurrency(cashbackCalc.amount)}</p>
+            <p className="text-emerald-400 font-semibold">
+              Beneficio acumulado: {cashbackCalc.percentage}% — {formatCurrency(cashbackCalc.amount)}
+            </p>
+            {cashbackCalc.ruleDescription && (
+              <p className="text-xs text-emerald-600 mt-0.5">{cashbackCalc.ruleDescription}</p>
+            )}
             <p className="text-sm text-emerald-600 mt-1">Nuevo saldo disponible: {formatCurrency(client?.cashbackBalance || 0)}</p>
           </div>
         )}
@@ -260,8 +265,20 @@ export default function CheckoutPage() {
               </div>
 
               {cashbackCalc?.amount > 0 && (
-                <div className="text-emerald-400 text-sm">
-                  Beneficio que generará esta compra: {formatCurrency(cashbackCalc.amount)}
+                <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-3 space-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-emerald-300 text-sm font-semibold flex items-center gap-1.5">
+                      <Gift size={14} /> Beneficio a ganar
+                    </span>
+                    <span className="text-emerald-400 font-black text-base">
+                      {cashbackCalc.percentage}% — {formatCurrency(cashbackCalc.amount)}
+                    </span>
+                  </div>
+                  {cashbackCalc.ruleDescription && (
+                    <p className="text-xs text-emerald-600 leading-tight">
+                      {cashbackCalc.ruleDescription}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
