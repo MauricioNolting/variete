@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Gift } from 'lucide-react';
@@ -13,33 +13,38 @@ export default function CartPage() {
   const { client } = useAuthStore();
   const subtotal = getSubtotal();
 
-  // Use server-computed effective balance (respects cashback expiry)
-  const { data: balanceData } = useQuery({
-    queryKey: ['my-cashback-balance'],
-    queryFn: () => api.get('/cashback/my/transactions').then((r) => r.data),
-    enabled: !!client,
-    staleTime: 30_000,
-  });
-  const cashbackBalance: number = balanceData?.effectiveBalance ?? client?.cashbackBalance ?? 0;
-
-  // Local input state for cashback amount
-  const [cashbackInput, setCashbackInput] = useState(cashbackToUse > 0 ? String(cashbackToUse) : '');
-
-  // Max cashback applicable
+  // Use stored balance as the primary source — it stays positive even when
+  // no CashbackTransaction records exist (manually-set balances, old data, etc.)
+  const cashbackBalance: number = client?.cashbackBalance ?? 0;
   const maxApplicable = Math.min(cashbackBalance, subtotal);
-  const appliedCashback = useCashback
-    ? Math.min(Number(cashbackInput) || cashbackBalance, maxApplicable)
-    : 0;
+
+  // cashbackInput is the text-field value only — the store holds the real amount
+  const [cashbackInput, setCashbackInput] = useState(
+    cashbackToUse > 0 ? String(cashbackToUse) : ''
+  );
+
+  // Applied cashback is always read from store (source of truth)
+  const appliedCashback = useCashback ? cashbackToUse : 0;
   const total = subtotal - appliedCashback;
 
-  // Sync to store whenever values change
-  useEffect(() => {
-    setCashbackUsage(useCashback, appliedCashback);
-  }, [useCashback, appliedCashback]);
-
+  // Toggle cashback on/off
   const handleToggle = (checked: boolean) => {
-    if (checked && !cashbackInput) setCashbackInput(String(maxApplicable));
-    setCashbackUsage(checked, checked ? (Number(cashbackInput) || maxApplicable) : 0);
+    if (checked) {
+      // Default to max if input is empty
+      const raw = Number(cashbackInput);
+      const amount = raw > 0 ? Math.min(raw, maxApplicable) : maxApplicable;
+      if (!cashbackInput) setCashbackInput(String(maxApplicable));
+      setCashbackUsage(true, amount);
+    } else {
+      setCashbackUsage(false, 0);
+    }
+  };
+
+  // Custom amount typed by user
+  const handleAmountChange = (value: string) => {
+    setCashbackInput(value);
+    const clamped = Math.min(Math.max(Number(value) || 0, 0), maxApplicable);
+    setCashbackUsage(true, clamped);
   };
 
   const { data: cashbackCalc } = useQuery({
@@ -54,7 +59,7 @@ export default function CartPage() {
         })),
         orderTotal: total,
       }).then((r) => r.data),
-    enabled: items.length > 0,
+    enabled: items.length > 0 && !!client,
   });
 
   return (
@@ -88,13 +93,19 @@ export default function CartPage() {
                   >
                     {img && (
                       <Link to={`/producto/${item.product.id}`}>
-                        <img src={img.url} alt={item.product.name}
-                          className="w-20 h-20 object-cover rounded-xl flex-shrink-0" loading="lazy" />
+                        <img
+                          src={img.url}
+                          alt={item.product.name}
+                          className="w-20 h-20 object-cover rounded-xl flex-shrink-0"
+                          loading="lazy"
+                        />
                       </Link>
                     )}
                     <div className="flex-1 min-w-0">
                       <Link to={`/producto/${item.product.id}`}>
-                        <p className="font-semibold text-dark-100 hover:text-gold-400 transition-colors">{item.product.name}</p>
+                        <p className="font-semibold text-dark-100 hover:text-gold-400 transition-colors">
+                          {item.product.name}
+                        </p>
                       </Link>
                       <p className="text-sm text-dark-400">{formatCurrency(item.product.price)} c/u</p>
                       {cashbackPerUnit > 0 && (
@@ -104,21 +115,29 @@ export default function CartPage() {
                       )}
                       <div className="flex items-center justify-between mt-3">
                         <div className="flex items-center gap-2 bg-dark-800 rounded-xl p-1">
-                          <button onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                            className="w-8 h-8 rounded-lg hover:bg-dark-700 flex items-center justify-center transition-colors">
+                          <button
+                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                            className="w-8 h-8 rounded-lg hover:bg-dark-700 flex items-center justify-center transition-colors"
+                          >
                             <Minus size={14} />
                           </button>
                           <span className="text-sm font-bold w-8 text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          <button
+                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
                             disabled={item.quantity >= item.product.stock}
-                            className="w-8 h-8 rounded-lg hover:bg-dark-700 flex items-center justify-center transition-colors disabled:opacity-40">
+                            className="w-8 h-8 rounded-lg hover:bg-dark-700 flex items-center justify-center transition-colors disabled:opacity-40"
+                          >
                             <Plus size={14} />
                           </button>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-gold-400">{formatCurrency(item.product.price * item.quantity)}</span>
-                          <button onClick={() => removeItem(item.product.id)}
-                            className="p-1.5 text-dark-500 hover:text-red-400 transition-colors">
+                          <span className="font-bold text-gold-400">
+                            {formatCurrency(item.product.price * item.quantity)}
+                          </span>
+                          <button
+                            onClick={() => removeItem(item.product.id)}
+                            className="p-1.5 text-dark-500 hover:text-red-400 transition-colors"
+                          >
                             <Trash2 size={16} />
                           </button>
                         </div>
@@ -132,16 +151,16 @@ export default function CartPage() {
 
           {/* Summary */}
           <div className="card p-5 space-y-4">
-
             {/* Subtotal */}
             <div className="flex justify-between items-center">
               <span className="text-dark-400">Subtotal:</span>
               <span className="font-semibold text-dark-100">{formatCurrency(subtotal)}</span>
             </div>
 
-            {/* Cashback balance widget */}
-            {cashbackBalance > 0 && (
+            {/* Cashback balance widget — only for logged-in clients with balance */}
+            {client && cashbackBalance > 0 && (
               <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-4 space-y-3">
+                {/* Header */}
                 <div className="flex items-center justify-between">
                   <span className="text-emerald-400 text-sm font-medium flex items-center gap-2">
                     <Gift size={15} /> Saldo de beneficios disponible
@@ -149,42 +168,49 @@ export default function CartPage() {
                   <span className="font-bold text-emerald-400">{formatCurrency(cashbackBalance)}</span>
                 </div>
 
+                {/* Toggle */}
                 <label className="flex items-center gap-3 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={useCashback}
                     onChange={(e) => handleToggle(e.target.checked)}
-                    className="w-4 h-4 rounded border-dark-600 accent-emerald-500"
+                    className="w-4 h-4 rounded border-dark-600 accent-emerald-500 cursor-pointer"
                   />
-                  <span className="text-sm text-dark-300">Utilizar saldo de beneficios en este pedido</span>
+                  <span className="text-sm text-dark-300">
+                    Utilizar saldo de beneficios en este pedido
+                  </span>
                 </label>
 
+                {/* Amount selector */}
                 {useCashback && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
                         value={cashbackInput}
-                        onChange={(e) => {
-                          setCashbackInput(e.target.value);
-                          setCashbackUsage(true, Math.min(Number(e.target.value) || 0, maxApplicable));
-                        }}
+                        onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder={`Máximo ${formatCurrency(maxApplicable)}`}
                         max={maxApplicable}
                         min={0}
+                        step={0.01}
                         className="text-sm py-2 flex-1"
                       />
                       <button
-                        onClick={() => { setCashbackInput(String(maxApplicable)); setCashbackUsage(true, maxApplicable); }}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap transition-colors"
+                        onClick={() => {
+                          setCashbackInput(String(maxApplicable));
+                          setCashbackUsage(true, maxApplicable);
+                        }}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap transition-colors px-2"
                       >
                         Usar todo
                       </button>
                     </div>
                     <p className="text-xs text-emerald-500">
-                      Se descontarán <span className="font-bold">{formatCurrency(appliedCashback)}</span> del total
+                      Se descontarán{' '}
+                      <span className="font-bold">{formatCurrency(appliedCashback)}</span>{' '}
+                      del total
                     </p>
-                  </motion.div>
+                  </div>
                 )}
               </div>
             )}
@@ -193,7 +219,9 @@ export default function CartPage() {
             {appliedCashback > 0 && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-emerald-400">Descuento saldo de beneficios:</span>
-                <span className="font-semibold text-emerald-400">-{formatCurrency(appliedCashback)}</span>
+                <span className="font-semibold text-emerald-400">
+                  -{formatCurrency(appliedCashback)}
+                </span>
               </div>
             )}
 
@@ -203,7 +231,7 @@ export default function CartPage() {
               <span className="font-black text-2xl text-gold-400">{formatCurrency(total)}</span>
             </div>
 
-            {/* Cashback to earn */}
+            {/* Cashback to earn on this purchase */}
             {cashbackCalc?.amount > 0 && (
               <div className="bg-dark-800/60 rounded-xl px-4 py-3 space-y-0.5">
                 <div className="flex items-center justify-between">
@@ -220,7 +248,7 @@ export default function CartPage() {
               </div>
             )}
 
-            <Link to="/checkout" className="btn-primary w-full text-base py-4">
+            <Link to="/checkout" className="btn-primary w-full text-base py-4 justify-center">
               Continuar con el pedido <ArrowRight size={18} />
             </Link>
           </div>

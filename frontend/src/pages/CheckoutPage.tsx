@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import CashbackCelebration from '../components/CashbackCelebration';
 
 export default function CheckoutPage() {
-  const { items, getSubtotal, clearCart, useCashback, cashbackToUse } = useCartStore();
+  const { items, getSubtotal, clearCart, useCashback, cashbackToUse, setCashbackUsage } = useCartStore();
   const { client, updateClient } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState('');
   const [timeRange, setTimeRange] = useState('');
@@ -22,7 +22,10 @@ export default function CheckoutPage() {
   const [showCelebration, setShowCelebration] = useState(false);
 
   const subtotal = getSubtotal();
-  const total = subtotal - (useCashback ? cashbackToUse : 0);
+  const cashbackBalance = client?.cashbackBalance ?? 0;
+  const maxApplicable = Math.min(cashbackBalance, subtotal);
+  const appliedCashback = useCashback ? cashbackToUse : 0;
+  const total = subtotal - appliedCashback;
 
   const { data: visitDates = [] } = useQuery<CityVisitDate[]>({
     queryKey: ['visit-dates', client?.cityId],
@@ -224,13 +227,37 @@ export default function CheckoutPage() {
                 <span className="text-dark-100">{formatCurrency(subtotal)}</span>
               </div>
 
-              {/* Cashback discount (if applied from cart) */}
-              {useCashback && cashbackToUse > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-emerald-400 flex items-center gap-1.5">
-                    <Gift size={13} /> Saldo de beneficios aplicado:
-                  </span>
-                  <span className="text-emerald-400 font-semibold">-{formatCurrency(cashbackToUse)}</span>
+              {/* Cashback toggle */}
+              {cashbackBalance > 0 && (
+                <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-3 space-y-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={useCashback}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          // Use amount already set from cart, or default to max
+                          const amount = cashbackToUse > 0 ? Math.min(cashbackToUse, maxApplicable) : maxApplicable;
+                          setCashbackUsage(true, amount);
+                        } else {
+                          setCashbackUsage(false, 0);
+                        }
+                      }}
+                      className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-sm text-emerald-300 font-medium flex items-center gap-1.5">
+                      <Gift size={13} /> Usar saldo de beneficios
+                    </span>
+                    <span className="text-emerald-400 text-xs ml-auto">
+                      disponible: {formatCurrency(cashbackBalance)}
+                    </span>
+                  </label>
+                  {useCashback && appliedCashback > 0 && (
+                    <div className="flex justify-between text-sm pl-6">
+                      <span className="text-emerald-500">Descuento:</span>
+                      <span className="text-emerald-400 font-semibold">-{formatCurrency(appliedCashback)}</span>
+                    </div>
+                  )}
                 </div>
               )}
 

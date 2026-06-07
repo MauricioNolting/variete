@@ -378,11 +378,17 @@ export default function ProfilePage() {
             </motion.div>
           )}
 
-          {cashbackChartData.length > 1 && (
-            <div className="card p-5">
-              <h3 className="font-semibold text-dark-100 flex items-center gap-2 mb-4">
-                <TrendingUp size={18} className="text-gold-500" /> Acumulación de beneficios en el tiempo
+          {/* Accumulated cashback chart — always show if client has at least 1 earned transaction */}
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-dark-100 flex items-center gap-2">
+                <TrendingUp size={18} className="text-gold-500" /> Beneficios acumulados en el tiempo
               </h3>
+              <span className="text-sm text-emerald-400 font-bold">
+                Total histórico: {formatCurrency(client.totalCashbackEarned)}
+              </span>
+            </div>
+            {cashbackChartData.length >= 2 ? (
               <ResponsiveContainer width="100%" height={180}>
                 <AreaChart data={cashbackChartData}>
                   <defs>
@@ -393,16 +399,29 @@ export default function ProfilePage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" />
                   <XAxis dataKey="fecha" tick={{ fill: '#666', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#666', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#666', fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
                   <Tooltip
                     contentStyle={{ background: '#1a1a1a', border: '1px solid #2d2d2d', borderRadius: 8 }}
                     formatter={(v: number) => [formatCurrency(v), 'Beneficio acumulado']}
                   />
-                  <Area type="stepAfter" dataKey="beneficio" stroke="#10b981" fill="url(#cashGradient)" strokeWidth={2} />
+                  <Area
+                    type="stepAfter"
+                    dataKey="beneficio"
+                    stroke="#10b981"
+                    fill="url(#cashGradient)"
+                    strokeWidth={2}
+                    dot={{ fill: '#10b981', r: 3 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center h-32 text-dark-500 gap-2">
+                <TrendingUp size={32} className="opacity-20" />
+                <p className="text-sm">Aún no hay beneficios acumulados en el historial.</p>
+                <p className="text-xs">El gráfico aparecerá con su primer pedido con beneficio.</p>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             {transactions.length === 0 ? (
