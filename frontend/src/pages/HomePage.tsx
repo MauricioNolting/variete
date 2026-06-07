@@ -1,11 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Calendar, Gift, Star, Zap } from 'lucide-react';
+import { ArrowRight, Calendar, Gift, Lock, Star, Zap } from 'lucide-react';
 import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { CashbackRule, City } from '../types';
 import { formatCurrency, formatDateLong, daysUntil, CASHBACK_TYPE_LABELS } from '../utils/format';
+
+interface TierData {
+  tier: 'BRONZE' | 'SILVER' | 'GOLD';
+  label: string;
+  emoji: string;
+  color: string;
+}
+
+interface TierBenefit {
+  id: number;
+  tier: 'BRONZE' | 'SILVER' | 'GOLD';
+  title: string;
+  percentage?: number;
+  description?: string;
+}
+
+const TIER_META: Record<string, { emoji: string; color: string; label: string }> = {
+  GOLD:   { emoji: '🥇', color: 'text-yellow-400', label: 'Oro' },
+  SILVER: { emoji: '🥈', color: 'text-gray-300',   label: 'Plata' },
+  BRONZE: { emoji: '🥉', color: 'text-amber-600',  label: 'Bronce' },
+};
 
 export default function HomePage() {
   const { client } = useAuthStore();
@@ -19,6 +40,18 @@ export default function HomePage() {
     queryKey: ['cities-public'],
     queryFn: () => api.get('/cities').then((r) => r.data),
     enabled: !!client,
+  });
+
+  const { data: tierData } = useQuery<TierData>({
+    queryKey: ['my-tier'],
+    queryFn: () => api.get('/clients/me/tier').then((r) => r.data),
+    enabled: !!client,
+  });
+
+  const { data: tierBenefits = [] } = useQuery<TierBenefit[]>({
+    queryKey: ['tier-benefits', tierData?.tier],
+    queryFn: () => api.get(`/cashback/tier-benefits?tier=${tierData?.tier}`).then((r) => r.data),
+    enabled: !!tierData?.tier,
   });
 
   const clientCity = cities.find((c) => c.id === client?.cityId);
@@ -122,6 +155,74 @@ export default function HomePage() {
             <Link to="/perfil" className="btn-secondary text-sm hidden md:flex">
               Ver historial
             </Link>
+          </div>
+        </motion.section>
+      )}
+
+      {/* Tier benefits for authenticated clients */}
+      {client && tierData && tierBenefits.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title flex items-center gap-2">
+              <Star size={22} className="text-gold-500" />
+              Beneficios de tu categoría
+              <span className="text-lg ml-1">{tierData.emoji}</span>
+              <span className={`text-base font-semibold ${tierData.color}`}>{tierData.label}</span>
+            </h2>
+            <Link to="/perfil" className="text-xs text-dark-500 hover:text-gold-400 transition-colors">
+              Ver todo →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {tierBenefits.map((b) => {
+              const meta = TIER_META[b.tier];
+              const isOwn = b.tier === tierData.tier;
+              const isHigher =
+                (b.tier === 'GOLD'   && tierData.tier !== 'GOLD') ||
+                (b.tier === 'SILVER' && tierData.tier === 'BRONZE');
+              return (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`card p-4 flex items-start gap-3 ${
+                    isOwn
+                      ? 'border-gold-600/30 bg-gradient-to-br from-dark-900 to-amber-950/10'
+                      : 'opacity-60'
+                  }`}
+                >
+                  <span className="text-xl flex-shrink-0 mt-0.5">{meta.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold ${isHigher ? 'text-dark-400' : 'text-dark-100'}`}>
+                      {isHigher && <Lock size={11} className="inline mr-1 mb-0.5 text-dark-500" />}
+                      {b.title}
+                      {b.percentage ? (
+                        <span className={`ml-1.5 font-black text-base ${meta.color}`}>
+                          {b.percentage}%
+                        </span>
+                      ) : null}
+                    </p>
+                    {b.description && (
+                      <p className="text-xs text-dark-500 mt-0.5 leading-tight">{b.description}</p>
+                    )}
+                    {isHigher && (
+                      <p className="text-xs text-dark-600 mt-1 italic">
+                        Suba a {meta.label} para acceder
+                      </p>
+                    )}
+                    {isOwn && (
+                      <p className={`text-xs mt-1 font-medium ${meta.color}`}>
+                        Por ser categoría {meta.label}
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.section>
       )}
