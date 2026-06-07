@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, Clock, CheckCircle, Gift } from 'lucide-react';
@@ -12,22 +12,17 @@ import toast from 'react-hot-toast';
 import CashbackCelebration from '../components/CashbackCelebration';
 
 export default function CheckoutPage() {
-  const navigate = useNavigate();
-  const { items, getSubtotal, clearCart } = useCartStore();
+  const { items, getSubtotal, clearCart, useCashback, cashbackToUse } = useCartStore();
   const { client, updateClient } = useAuthStore();
   const [selectedDate, setSelectedDate] = useState('');
   const [timeRange, setTimeRange] = useState('');
   const [notes, setNotes] = useState('');
-  const [useCashback, setUseCashback] = useState(false);
-  const [cashbackAmount, setCashbackAmount] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [celebrationAmount, setCelebrationAmount] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
 
   const subtotal = getSubtotal();
-  const cashbackBalance = client?.cashbackBalance || 0;
-  const cashbackToUse = useCashback ? Math.min(Number(cashbackAmount) || cashbackBalance, cashbackBalance, subtotal) : 0;
-  const total = subtotal - cashbackToUse;
+  const total = subtotal - (useCashback ? cashbackToUse : 0);
 
   const { data: visitDates = [] } = useQuery<CityVisitDate[]>({
     queryKey: ['visit-dates', client?.cityId],
@@ -89,7 +84,7 @@ export default function CheckoutPage() {
       deliveryDate,
       preferredTimeRange: timeRange,
       notes: finalNotes,
-      cashbackToUse: cashbackToUse,
+      cashbackToUse: useCashback ? cashbackToUse : 0,
     });
   };
 
@@ -229,33 +224,13 @@ export default function CheckoutPage() {
                 <span className="text-dark-100">{formatCurrency(subtotal)}</span>
               </div>
 
-              {/* Cashback option */}
-              {cashbackBalance > 0 && (
-                <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-emerald-400 text-sm font-medium flex items-center gap-1.5">
-                      <Gift size={14} /> Saldo de beneficios disponible: {formatCurrency(cashbackBalance)}
-                    </span>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={useCashback} onChange={(e) => setUseCashback(e.target.checked)}
-                      className="w-4 h-4 border-dark-600 rounded" />
-                    <span className="text-sm text-dark-300">Utilizar saldo de beneficios disponible</span>
-                  </label>
-                  {useCashback && (
-                    <div>
-                      <input
-                        type="number"
-                        placeholder={`Máximo ${formatCurrency(Math.min(cashbackBalance, subtotal))}`}
-                        value={cashbackAmount}
-                        onChange={(e) => setCashbackAmount(e.target.value)}
-                        max={Math.min(cashbackBalance, subtotal)}
-                        min={0}
-                        className="text-sm py-2"
-                      />
-                      <p className="text-xs text-emerald-400 mt-1">Utilizar saldo de beneficios disponible: -{formatCurrency(cashbackToUse)}</p>
-                    </div>
-                  )}
+              {/* Cashback discount (if applied from cart) */}
+              {useCashback && cashbackToUse > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-400 flex items-center gap-1.5">
+                    <Gift size={13} /> Saldo de beneficios aplicado:
+                  </span>
+                  <span className="text-emerald-400 font-semibold">-{formatCurrency(cashbackToUse)}</span>
                 </div>
               )}
 

@@ -5,6 +5,9 @@ import { CartItem, Product } from '../types';
 interface CartStore {
   items: CartItem[];
   isOpen: boolean;
+  // Cashback decision (persists from cart → checkout)
+  useCashback: boolean;
+  cashbackToUse: number;
   addItem: (product: Product, quantity?: number) => void;
   removeItem: (productId: number) => void;
   updateQuantity: (productId: number, quantity: number) => void;
@@ -14,6 +17,7 @@ interface CartStore {
   toggleCart: () => void;
   getTotalItems: () => number;
   getSubtotal: () => number;
+  setCashbackUsage: (use: boolean, amount: number) => void;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -21,6 +25,8 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       isOpen: false,
+      useCashback: false,
+      cashbackToUse: 0,
 
       addItem: (product, quantity = 1) => {
         set((state) => {
@@ -54,12 +60,13 @@ export const useCartStore = create<CartStore>()(
         }));
       },
 
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], useCashback: false, cashbackToUse: 0 }),
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
       getTotalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
       getSubtotal: () => get().items.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
+      setCashbackUsage: (use, amount) => set({ useCashback: use, cashbackToUse: amount }),
     }),
     { name: 'variete_cart' }
   )

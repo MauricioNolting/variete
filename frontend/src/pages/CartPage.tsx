@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight, Gift } from 'lucide-react';
@@ -8,12 +9,33 @@ import { formatCurrency } from '../utils/format';
 import api from '../utils/api';
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, getSubtotal } = useCartStore();
+  const { items, removeItem, updateQuantity, getSubtotal, useCashback, cashbackToUse, setCashbackUsage } = useCartStore();
   const { client } = useAuthStore();
   const subtotal = getSubtotal();
+  const cashbackBalance = client?.cashbackBalance || 0;
+
+  // Local input state for cashback amount
+  const [cashbackInput, setCashbackInput] = useState(cashbackToUse > 0 ? String(cashbackToUse) : '');
+
+  // Max cashback applicable
+  const maxApplicable = Math.min(cashbackBalance, subtotal);
+  const appliedCashback = useCashback
+    ? Math.min(Number(cashbackInput) || cashbackBalance, maxApplicable)
+    : 0;
+  const total = subtotal - appliedCashback;
+
+  // Sync to store whenever values change
+  useEffect(() => {
+    setCashbackUsage(useCashback, appliedCashback);
+  }, [useCashback, appliedCashback]);
+
+  const handleToggle = (checked: boolean) => {
+    if (checked && !cashbackInput) setCashbackInput(String(maxApplicable));
+    setCashbackUsage(checked, checked ? (Number(cashbackInput) || maxApplicable) : 0);
+  };
 
   const { data: cashbackCalc } = useQuery({
-    queryKey: ['cashback-cart', subtotal],
+    queryKey: ['cashback-cart', total],
     queryFn: () =>
       api.post('/cashback/calculate', {
         items: items.map((i) => ({
@@ -22,7 +44,7 @@ export default function CartPage() {
           quantity: i.quantity,
           unitPrice: i.product.price,
         })),
-        orderTotal: subtotal,
+        orderTotal: total,
       }).then((r) => r.data),
     enabled: items.length > 0,
   });
@@ -44,7 +66,9 @@ export default function CartPage() {
             <AnimatePresence>
               {items.map((item) => {
                 const img = item.product.images[item.product.mainImageIndex];
-                const cashbackPerUnit = cashbackCalc ? (item.product.price * cashbackCalc.percentage) / 100 : 0;
+                const cashbackPerUnit = cashbackCalc
+                  ? (item.product.price * cashbackCalc.percentage) / 100
+                  : 0;
                 return (
                   <motion.div
                     key={item.product.id}
@@ -99,27 +123,97 @@ export default function CartPage() {
           </div>
 
           {/* Summary */}
-          <div className="card p-5 space-y-3">
-            {client?.cashbackBalance !== undefined && client.cashbackBalance > 0 && (
-              <div className="flex items-center justify-between text-sm pb-3 border-b border-dark-800">
-                <span className="text-emerald-400 flex items-center gap-2">
-                  <Gift size={16} /> Saldo de beneficios disponible:
-                </span>
-                <span className="font-semibold text-emerald-400">{formatCurrency(client.cashbackBalance)}</span>
-              </div>
-            )}
+          <div className="card p-5 space-y-4">
+
+            {/* Subtotal */}
             <div className="flex justify-between items-center">
-              <span className="text-dark-300">Subtotal del pedido:</span>
-              <span className="text-xl font-bold text-dark-50">{formatCurrency(subtotal)}</span>
+              <span className="text-dark-400">Subtotal:</span>
+              <span className="font-semibold text-dark-100">{formatCurrency(subtotal)}</span>
             </div>
-            {cashbackCalc?.amount > 0 && (
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-emerald-400">Beneficio que generará esta compra:</span>
-                <span className="font-semibold text-emerald-400">{formatCurrency(cashbackCalc.amount)}</span>
+
+            {/* Cashback balance widget */}
+            {cashbackBalance > 0 && (
+              <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-400 text-sm font-medium flex items-center gap-2">
+                    <Gift size={15} /> Saldo de beneficios disponible
+                  </span>
+                  <span className="font-bold text-emerald-400">{formatCurrency(cashbackBalance)}</span>
+                </div>
+
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useCashback}
+                    onChange={(e) => handleToggle(e.target.checked)}
+                    className="w-4 h-4 rounded border-dark-600 accent-emerald-500"
+                  />
+                  <span className="text-sm text-dark-300">Utilizar saldo de beneficios en este pedido</span>
+                </label>
+
+                {useCashback && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={cashbackInput}
+                        onChange={(e) => {
+                          setCashbackInput(e.target.value);
+                          setCashbackUsage(true, Math.min(Number(e.target.value) || 0, maxApplicable));
+                        }}
+                        placeholder={`Máximo ${formatCurrency(maxApplicable)}`}
+                        max={maxApplicable}
+                        min={0}
+                        className="text-sm py-2 flex-1"
+                      />
+                      <button
+                        onClick={() => { setCashbackInput(String(maxApplicable)); setCashbackUsage(true, maxApplicable); }}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 whitespace-nowrap transition-colors"
+                      >
+                        Usar todo
+                      </button>
+                    </div>
+                    <p className="text-xs text-emerald-500">
+                      Se descontarán <span className="font-bold">{formatCurrency(appliedCashback)}</span> del total
+                    </p>
+                  </motion.div>
+                )}
               </div>
             )}
+
+            {/* Discount line */}
+            {appliedCashback > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-emerald-400">Descuento saldo de beneficios:</span>
+                <span className="font-semibold text-emerald-400">-{formatCurrency(appliedCashback)}</span>
+              </div>
+            )}
+
+            {/* Total */}
+            <div className="flex justify-between items-center border-t border-dark-800 pt-3">
+              <span className="font-bold text-dark-100 text-lg">Total a pagar:</span>
+              <span className="font-black text-2xl text-gold-400">{formatCurrency(total)}</span>
+            </div>
+
+            {/* Cashback to earn */}
+            {cashbackCalc?.amount > 0 && (
+              <div className="bg-dark-800/60 rounded-xl px-4 py-3 space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-300 text-sm font-medium flex items-center gap-1.5">
+                    <Gift size={14} /> Beneficio a ganar en esta compra
+                  </span>
+                  <span className="text-emerald-400 font-black">
+                    {cashbackCalc.percentage}% — {formatCurrency(cashbackCalc.amount)}
+                  </span>
+                </div>
+                {cashbackCalc.ruleDescription && (
+                  <p className="text-xs text-emerald-700">{cashbackCalc.ruleDescription}</p>
+                )}
+              </div>
+            )}
+
             <Link to="/checkout" className="btn-primary w-full text-base py-4">
-              Confirmar pedido <ArrowRight size={18} />
+              Continuar con el pedido <ArrowRight size={18} />
             </Link>
           </div>
         </>
