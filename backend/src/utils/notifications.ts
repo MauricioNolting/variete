@@ -1,19 +1,35 @@
 import twilio from 'twilio';
-import { Resend } from 'resend';
 
 // ── Twilio (WhatsApp) ────────────────────────────────────────────────────────
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-// ── Resend (email vía HTTPS — sin bloqueo de puertos SMTP) ───────────────────
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+// ── Brevo — email transaccional vía HTTPS ────────────────────────────────────
+const BREVO_API_KEY    = process.env.BREVO_API_KEY;
+const BREVO_SENDER     = process.env.BREVO_SENDER_EMAIL || 'varietecharata@gmail.com';
 
-// FROM visible por el destinatario; reply-to va al Gmail del negocio
-const FROM_EMAIL = 'Varieté <onboarding@resend.dev>';
-const REPLY_TO   = process.env.GMAIL_USER || undefined;
+async function sendBrevoEmail(to: string, subject: string, html: string): Promise<void> {
+  if (!BREVO_API_KEY) { console.log('[Brevo] No configurado — email omitido.'); return; }
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': BREVO_API_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender:      { name: 'Varieté', email: BREVO_SENDER },
+      to:          [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Brevo ${res.status}: ${err}`);
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface OrderNotificationData {
@@ -74,7 +90,7 @@ ${itemsList}
 export async function sendOrderConfirmationEmail(data: OrderNotificationData): Promise<void> {
   try {
     if (!data.email) return;
-    if (!resend) { console.log('[Resend] No configurado — email de confirmación omitido.'); return; }
+    if (!BREVO_API_KEY) { console.log('[Brevo] No configurado — email de confirmación omitido.'); return; }
 
     const itemsRows = data.items
       .map(
@@ -179,13 +195,7 @@ export async function sendOrderConfirmationEmail(data: OrderNotificationData): P
 </body>
 </html>`;
 
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: data.email,
-      reply_to: REPLY_TO,
-      subject: `Confirmación de Pedido #${data.orderNumber} — Varieté`,
-      html,
-    });
+    await sendBrevoEmail(data.email, `Confirmación de Pedido #${data.orderNumber} — Varieté`, html);
   } catch (err) {
     console.error('Error enviando email de confirmación:', err);
   }
@@ -199,7 +209,7 @@ export async function sendOrderStatusEmail(
   status: 'PREPARING' | 'DELIVERED'
 ): Promise<void> {
   try {
-    if (!resend) { console.log('[Resend] No configurado — email de estado omitido.'); return; }
+    if (!BREVO_API_KEY) { console.log('[Brevo] No configurado — email de estado omitido.'); return; }
     const isDelivered = status === 'DELIVERED';
     const subject = isDelivered
       ? `Su pedido #${orderNumber} ha sido entregado — Varieté`
@@ -233,13 +243,7 @@ export async function sendOrderStatusEmail(
 </table>
 </body></html>`;
 
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: email,
-      reply_to: REPLY_TO,
-      subject,
-      html,
-    });
+    await sendBrevoEmail(email, subject, html);
   } catch (err) {
     console.error('Error enviando email de estado de pedido:', err);
   }
