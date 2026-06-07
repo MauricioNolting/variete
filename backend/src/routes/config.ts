@@ -34,6 +34,7 @@ router.put('/', authenticateToken, requireAdmin, async (req, res) => {
     const {
       lowStockThreshold, adminWhatsappNumber, emailFrom,
       bronzeThreshold, silverThreshold, goldThreshold,
+      tierPeriodType, tierGracePeriodDays, tierGraceRetainPercent,
     } = req.body;
 
     const config = await prisma.globalConfig.upsert({
@@ -45,6 +46,9 @@ router.put('/', authenticateToken, requireAdmin, async (req, res) => {
         bronzeThreshold: bronzeThreshold ? Number(bronzeThreshold) : undefined,
         silverThreshold: silverThreshold ? Number(silverThreshold) : undefined,
         goldThreshold: goldThreshold ? Number(goldThreshold) : undefined,
+        tierPeriodType: tierPeriodType ?? undefined,
+        tierGracePeriodDays: tierGracePeriodDays ? Number(tierGracePeriodDays) : undefined,
+        tierGraceRetainPercent: tierGraceRetainPercent ? Number(tierGraceRetainPercent) : undefined,
       },
       create: {
         id: 1,
@@ -54,6 +58,9 @@ router.put('/', authenticateToken, requireAdmin, async (req, res) => {
         bronzeThreshold: Number(bronzeThreshold) || 1000,
         silverThreshold: Number(silverThreshold) || 5000,
         goldThreshold: Number(goldThreshold) || 15000,
+        tierPeriodType: tierPeriodType || 'MONTHLY',
+        tierGracePeriodDays: Number(tierGracePeriodDays) || 14,
+        tierGraceRetainPercent: Number(tierGraceRetainPercent) || 20,
       },
     });
     res.json(config);

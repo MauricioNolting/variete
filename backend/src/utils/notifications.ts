@@ -26,8 +26,11 @@ interface OrderNotificationData {
   createdAt: Date;
 }
 
-export async function sendWhatsAppToAdmin(data: OrderNotificationData): Promise<void> {
+export async function sendWhatsAppToAdmin(data: OrderNotificationData, adminNumber: string): Promise<void> {
   try {
+    if (!twilioClient) { console.log('[Twilio] No configurado — WhatsApp omitido.'); return; }
+    if (!adminNumber) { console.log('[Twilio] Número de admin no configurado — WhatsApp omitido.'); return; }
+
     const itemsList = data.items
       .map((i) => `• ${i.name} x${i.quantity} — $${i.subtotal.toFixed(2)}`)
       .join('\n');
@@ -49,10 +52,9 @@ ${itemsList}
 📝 Observaciones: ${data.notes || 'Sin observaciones'}
 ⏰ Registrado el: ${data.createdAt.toLocaleString('es-AR')}`;
 
-    if (!twilioClient) { console.log('[Twilio] No configurado — WhatsApp omitido.'); return; }
     await twilioClient.messages.create({
       from: process.env.TWILIO_WHATSAPP_FROM!,
-      to: process.env.ADMIN_WHATSAPP_NUMBER!,
+      to: adminNumber,
       body,
     });
   } catch (err) {

@@ -124,6 +124,12 @@ export interface GlobalConfig {
   lowStockThreshold: number;
   adminWhatsappNumber: string;
   emailFrom: string;
+  bronzeThreshold: number;
+  silverThreshold: number;
+  goldThreshold: number;
+  tierPeriodType: string;
+  tierGracePeriodDays: number;
+  tierGraceRetainPercent: number;
 }
 
 export type UserRole = 'admin' | 'client';

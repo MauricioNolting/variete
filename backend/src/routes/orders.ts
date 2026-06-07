@@ -146,8 +146,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       return newOrder;
     });
 
-    // Fetch updated client
-    const updatedClient = await prisma.client.findUnique({ where: { id: client.id } });
+    // Fetch updated client and admin config
+    const [updatedClient, globalConfig] = await Promise.all([
+      prisma.client.findUnique({ where: { id: client.id } }),
+      prisma.globalConfig.findUnique({ where: { id: 1 } }),
+    ]);
 
     // Send notifications (non-blocking)
     const notifData = {
@@ -171,7 +174,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       createdAt: order.createdAt,
     };
 
-    sendWhatsAppToAdmin(notifData).catch(() => {});
+    const adminWhatsapp = globalConfig?.adminWhatsappNumber || '';
+    sendWhatsAppToAdmin(notifData, adminWhatsapp).catch(() => {});
     if (client.email) sendOrderConfirmationEmail(notifData).catch(() => {});
 
     res.status(201).json({

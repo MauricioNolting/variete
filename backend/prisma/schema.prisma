@@ -24,6 +24,7 @@ model Client {
   email               String?
   cashbackBalance     Float                 @default(0)
   totalCashbackEarned Float                 @default(0)
+  tierValidUntil      DateTime?
   createdAt           DateTime              @default(now())
   city                City?                 @relation(fields: [cityId], references: [id])
   orders              Order[]
@@ -181,8 +182,11 @@ model GlobalConfig {
   lowStockThreshold   Int     @default(10)
   adminWhatsappNumber String  @default("")
   emailFrom           String  @default("")
-  bronzeThreshold     Float   @default(1000)
-  silverThreshold     Float   @default(5000)
-  goldThreshold       Float   @default(15000)
+  bronzeThreshold       Float   @default(1000)
+  silverThreshold       Float   @default(5000)
+  goldThreshold         Float   @default(15000)
+  tierPeriodType        String  @default("MONTHLY")   // MONTHLY | QUARTERLY
+  tierGracePeriodDays   Int     @default(14)
+  tierGraceRetainPercent Float  @default(20)
 }
 

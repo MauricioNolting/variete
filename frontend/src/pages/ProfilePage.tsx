@@ -1,19 +1,49 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, Award } from 'lucide-react';
+import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, Award, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { Order, CashbackTransaction } from '../types';
-import { formatCurrency, formatDate, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, getCashbackTier } from '../utils/format';
+import { formatCurrency, formatDate, formatDateLong, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../utils/format';
+
+interface TierData {
+  tier: 'BRONZE' | 'SILVER' | 'GOLD';
+  label: string;
+  emoji: string;
+  color: string;
+  periodSpending: number;
+  periodStart: string;
+  periodEnd: string;
+  nextEvalDate: string;
+  inGracePeriod: boolean;
+  gracePeriodEnd?: string;
+  graceRetained: boolean;
+  graceSpending?: number;
+  graceThreshold?: number;
+  tierValidUntil?: string;
+  message?: string;
+}
 
 export default function ProfilePage() {
   const { client } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'cashback'>('orders');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+
+  const { data: tierData } = useQuery<TierData>({
+    queryKey: ['my-tier'],
+    queryFn: () => api.get('/clients/me/tier').then((r) => r.data),
+    enabled: !!client,
+  });
+
+  const { data: cashbackData } = useQuery({
+    queryKey: ['my-cashback-balance'],
+    queryFn: () => api.get('/cashback/my/transactions').then((r) => r.data),
+    enabled: !!client,
+  });
 
   const { data: orders = [] } = useQuery<Order[]>({
     queryKey: ['my-orders'],
@@ -21,13 +51,9 @@ export default function ProfilePage() {
     enabled: !!client,
   });
 
-  const { data: transactions = [] } = useQuery<CashbackTransaction[]>({
-    queryKey: ['my-cashback'],
-    queryFn: () => api.get('/cashback/my/transactions').then((r) => r.data),
-    enabled: !!client,
-  });
-
-  const tier = getCashbackTier(client?.totalCashbackEarned || 0);
+  const transactions: CashbackTransaction[] = cashbackData?.transactions || [];
+  const effectiveBalance = cashbackData?.effectiveBalance ?? client?.cashbackBalance ?? 0;
+  const nextExpiry = cashbackData?.nextExpiry;
 
   const cashbackChartData = transactions
     .filter((t) => t.type === 'EARNED')
@@ -40,6 +66,8 @@ export default function ProfilePage() {
 
   if (!client) return null;
 
+  const tierColor = tierData?.color || 'text-dark-400';
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       {/* Profile header */}
@@ -49,16 +77,68 @@ export default function ProfilePage() {
             <User size={28} className="text-gold-500" />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-dark-50 truncate">{client.localName}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-dark-50 truncate">{client.localName}</h1>
+              {tierData && <span className="text-lg">{tierData.emoji}</span>}
+            </div>
             <p className="text-dark-400 text-sm">{client.address}</p>
             <p className="text-dark-500 text-sm">{client.city?.name} · {client.phone}</p>
           </div>
           <div className="text-right flex-shrink-0">
-            <span className={`text-sm font-semibold ${tier.color}`}>{tier.label}</span>
-            {tier.next && <p className="text-xs text-dark-500 mt-0.5">{tier.next}</p>}
+            <span className={`text-sm font-semibold ${tierColor}`}>{tierData?.label || '—'}</span>
+            {tierData?.message && (
+              <p className="text-xs text-dark-500 mt-0.5 max-w-[160px] text-right leading-tight">
+                {tierData.message}
+              </p>
+            )}
           </div>
         </div>
       </motion.div>
+
+      {/* Grace period alert */}
+      {tierData?.inGracePeriod && !tierData.graceRetained && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card p-4 border-yellow-500/30 bg-yellow-950/20"
+        >
+          <div className="flex items-start gap-3">
+            <Clock size={20} className="text-yellow-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-yellow-300">Período de gracia Oro activo</p>
+              <p className="text-xs text-yellow-500/80 mt-1">{tierData.message}</p>
+              {tierData.graceThreshold !== undefined && tierData.graceSpending !== undefined && (
+                <div className="mt-2">
+                  <div className="flex justify-between text-xs text-dark-400 mb-1">
+                    <span>Progreso hacia la retención</span>
+                    <span>{formatCurrency(tierData.graceSpending)} / {formatCurrency(tierData.graceThreshold)}</span>
+                  </div>
+                  <div className="h-1.5 bg-dark-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-yellow-400 rounded-full transition-all"
+                      style={{ width: `${Math.min(100, (tierData.graceSpending / tierData.graceThreshold) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Grace period success */}
+      {tierData?.inGracePeriod && tierData.graceRetained && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card p-4 border-emerald-500/30 bg-emerald-950/20"
+        >
+          <div className="flex items-center gap-3">
+            <CheckCircle size={20} className="text-emerald-400 flex-shrink-0" />
+            <p className="text-sm text-emerald-300">{tierData.message}</p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Cashback balance */}
       <motion.div
@@ -74,13 +154,40 @@ export default function ProfilePage() {
             </div>
             <div>
               <p className="text-xs text-dark-500 uppercase tracking-wide">Saldo de beneficios disponible</p>
-              <p className="text-3xl font-black text-emerald-400">{formatCurrency(client.cashbackBalance)}</p>
+              <p className="text-3xl font-black text-emerald-400">{formatCurrency(effectiveBalance)}</p>
               <p className="text-xs text-dark-500 mt-0.5">Acumulado histórico: {formatCurrency(client.totalCashbackEarned)}</p>
+              {nextExpiry && (
+                <p className="text-xs text-amber-500 mt-0.5">
+                  <AlertCircle size={10} className="inline mr-1" />
+                  Próximo vencimiento: {formatDateLong(nextExpiry)}
+                </p>
+              )}
             </div>
           </div>
-          <Award size={40} className={`opacity-30 ${tier.color}`} />
+          <Award size={40} className={`opacity-30 ${tierColor}`} />
         </div>
       </motion.div>
+
+      {/* Tier stats */}
+      {tierData && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="card p-4"
+        >
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <Award size={16} className={tierColor} />
+              <span className={`font-semibold ${tierColor}`}>{tierData.label}</span>
+            </div>
+            <div className="text-right text-xs text-dark-500 space-y-0.5">
+              <p>Gasto período anterior: <span className="text-dark-300">{formatCurrency(tierData.periodSpending)}</span></p>
+              <p>Próxima evaluación: <span className="text-dark-300">{formatDate(tierData.nextEvalDate)}</span></p>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-dark-900 rounded-xl p-1 border border-dark-800">

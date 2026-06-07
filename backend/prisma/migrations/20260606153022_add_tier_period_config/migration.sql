@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "GlobalConfig" ADD COLUMN     "tierGracePeriodDays" INTEGER NOT NULL DEFAULT 14,
+ADD COLUMN     "tierGraceRetainPercent" DOUBLE PRECISION NOT NULL DEFAULT 20,
+ADD COLUMN     "tierPeriodType" TEXT NOT NULL DEFAULT 'MONTHLY';

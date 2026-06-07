@@ -45,6 +45,18 @@ router.get('/:id', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Client: get my tier (calculated dynamically)
+router.get('/me/tier', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { calculateClientTier } = await import('../utils/tiers');
+    const tier = await calculateClientTier(req.userId!);
+    res.json(tier);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al calcular la categoría.' });
+  }
+});
+
 // Client: get my profile
 router.get('/me/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
