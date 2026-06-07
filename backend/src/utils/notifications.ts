@@ -1,14 +1,27 @@
 import twilio from 'twilio';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
+// ── Twilio (WhatsApp) ────────────────────────────────────────────────────────
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
+// ── Nodemailer (Gmail SMTP) ──────────────────────────────────────────────────
+const mailer = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    })
   : null;
 
+const FROM_EMAIL = process.env.GMAIL_USER
+  ? `Varieté <${process.env.GMAIL_USER}>`
+  : 'Varieté <no-reply@variete.com>';
+
+// ── Types ────────────────────────────────────────────────────────────────────
 interface OrderNotificationData {
   orderNumber: number;
   clientName: string;
@@ -26,6 +39,7 @@ interface OrderNotificationData {
   createdAt: Date;
 }
 
+// ── WhatsApp al admin ────────────────────────────────────────────────────────
 export async function sendWhatsAppToAdmin(data: OrderNotificationData, adminNumber: string): Promise<void> {
   try {
     if (!twilioClient) { console.log('[Twilio] No configurado — WhatsApp omitido.'); return; }
@@ -62,9 +76,11 @@ ${itemsList}
   }
 }
 
+// ── Email de confirmación de pedido al cliente ────────────────────────────────
 export async function sendOrderConfirmationEmail(data: OrderNotificationData): Promise<void> {
   try {
-    if (!data.email || !resend) { if (!resend) console.log('[Resend] No configurado — email omitido.'); return; }
+    if (!data.email) return;
+    if (!mailer) { console.log('[Gmail] No configurado — email de confirmación omitido.'); return; }
 
     const itemsRows = data.items
       .map(
@@ -169,8 +185,8 @@ export async function sendOrderConfirmationEmail(data: OrderNotificationData): P
 </body>
 </html>`;
 
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'Varieté <noreply@variete.com>',
+    await mailer.sendMail({
+      from: FROM_EMAIL,
       to: data.email,
       subject: `Confirmación de Pedido #${data.orderNumber} — Varieté`,
       html,
@@ -180,6 +196,7 @@ export async function sendOrderConfirmationEmail(data: OrderNotificationData): P
   }
 }
 
+// ── Email de actualización de estado de pedido ────────────────────────────────
 export async function sendOrderStatusEmail(
   email: string,
   clientName: string,
@@ -187,7 +204,7 @@ export async function sendOrderStatusEmail(
   status: 'PREPARING' | 'DELIVERED'
 ): Promise<void> {
   try {
-    if (!resend) { console.log('[Resend] No configurado — email de estado omitido.'); return; }
+    if (!mailer) { console.log('[Gmail] No configurado — email de estado omitido.'); return; }
     const isDelivered = status === 'DELIVERED';
     const subject = isDelivered
       ? `Su pedido #${orderNumber} ha sido entregado — Varieté`
@@ -221,8 +238,8 @@ export async function sendOrderStatusEmail(
 </table>
 </body></html>`;
 
-    await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'Varieté <noreply@variete.com>',
+    await mailer.sendMail({
+      from: FROM_EMAIL,
       to: email,
       subject,
       html,
