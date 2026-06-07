@@ -61,8 +61,11 @@ export default function App() {
         } else {
           setAuth('client', res.data.client, null);
         }
-      } catch {
-        clearAuth();
+      } catch (err: any) {
+        // Only clear session on explicit auth error (401), not on server errors (500)
+        if (err?.response?.status === 401) {
+          clearAuth();
+        }
       }
     };
     verify();
