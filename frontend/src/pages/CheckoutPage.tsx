@@ -68,16 +68,27 @@ export default function CheckoutPage() {
     },
   });
 
+  const noDatesAvailable = visitDates.length === 0;
+
   const handleSubmit = () => {
-    if (!selectedDate) { toast.error('Seleccione la fecha de entrega de su preferencia.'); return; }
+    if (!noDatesAvailable && !selectedDate) { toast.error('Seleccione la fecha de entrega de su preferencia.'); return; }
     if (!timeRange) { toast.error('Indique el rango horario disponible para la recepción del pedido.'); return; }
     if (items.length === 0) { toast.error('El pedido está vacío.'); return; }
 
+    // If no dates configured for the city, use a 30-day placeholder and mark in notes
+    const deliveryDate = noDatesAvailable
+      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      : selectedDate;
+
+    const finalNotes = noDatesAvailable
+      ? `[📅 Fecha a coordinar con el cliente] ${notes || ''}`.trim()
+      : (notes || undefined);
+
     mutation.mutate({
       items: items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
-      deliveryDate: selectedDate,
+      deliveryDate,
       preferredTimeRange: timeRange,
-      notes: notes || undefined,
+      notes: finalNotes,
       cashbackToUse: cashbackToUse,
     });
   };
@@ -93,7 +104,7 @@ export default function CheckoutPage() {
           <CheckCircle size={40} className="text-emerald-400" />
         </div>
         <h2 className="text-2xl font-bold text-dark-50 mb-2">Su pedido ha sido registrado exitosamente</h2>
-        <p className="text-dark-400 mb-6">Recibirá una confirmación por email. El pago se realiza contra entrega.</p>
+        <p className="text-dark-400 mb-6">Recibirá una confirmación por email. El pago se realiza al momento de recibir el pedido.</p>
         {cashbackCalc?.amount > 0 && (
           <div className="card p-4 mb-6 border-emerald-600/30">
             <p className="text-emerald-400 font-semibold">Beneficio acumulado en esta compra: {formatCurrency(cashbackCalc.amount)}</p>
@@ -132,8 +143,13 @@ export default function CheckoutPage() {
             <h3 className="font-semibold text-dark-100 flex items-center gap-2 mb-4">
               <Calendar size={18} className="text-gold-500" /> Fecha de entrega
             </h3>
-            {visitDates.length === 0 ? (
-              <p className="text-dark-400 text-sm">No hay fechas de entrega disponibles para su ciudad. Contáctenos para coordinar.</p>
+            {noDatesAvailable ? (
+              <div className="bg-amber-950/20 border border-amber-600/30 rounded-xl p-4 text-sm text-amber-300">
+                <p className="font-medium mb-1">Sin fechas programadas para su ciudad aún</p>
+                <p className="text-amber-400/70 text-xs leading-relaxed">
+                  Puede confirmar su pedido igualmente. Una vez procesado, nos pondremos en contacto para coordinar y confirmarle la fecha exacta de entrega.
+                </p>
+              </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {visitDates.map((d) => (
@@ -253,7 +269,7 @@ export default function CheckoutPage() {
 
           <div className="card p-4 text-xs text-dark-400 border-gold-600/20 bg-amber-950/10">
             <p className="font-medium text-gold-500 mb-1">Pago contra entrega</p>
-            El pago se realiza en efectivo al momento de recibir su pedido. Se requiere una anticipación mínima de 24 horas.
+            El pago se realiza al momento de recibir su pedido. El pedido debe realizarse con al menos 24 hs. de anticipación a la fecha de entrega.
           </div>
 
           <button
