@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Package, Grid, MapPin, Gift, Settings, Users, ShoppingBag, LogOut, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Package, Grid, MapPin, Gift, Settings, Users, ShoppingBag, LogOut, TrendingUp, Star } from 'lucide-react';
 import { useAuthStore } from '../../store/auth';
 import { useNavigate } from 'react-router-dom';
 import api from '../../utils/api';
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/admin/categorias', icon: Grid, label: 'Categorías' },
   { path: '/admin/ciudades', icon: MapPin, label: 'Ciudades' },
   { path: '/admin/cashback', icon: Gift, label: 'Beneficios' },
+  { path: '/admin/beneficios-cat', icon: Star, label: 'Ben. por cat.' },
   { path: '/admin/clientes', icon: Users, label: 'Clientes' },
   { path: '/admin/configuracion', icon: Settings, label: 'Configuración' },
 ];

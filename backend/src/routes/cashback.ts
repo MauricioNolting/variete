@@ -192,6 +192,81 @@ router.put('/config', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Public: get tier benefits visible for a given tier level
+// BRONZE sees all, SILVER sees SILVER+GOLD, GOLD sees only GOLD
+router.get('/tier-benefits', async (req, res) => {
+  try {
+    const { tier } = req.query;
+    const validTiers: Record<string, string[]> = {
+      GOLD:   ['GOLD'],
+      SILVER: ['SILVER', 'GOLD'],
+      BRONZE: ['BRONZE', 'SILVER', 'GOLD'],
+    };
+    const allowedTiers = tier ? (validTiers[String(tier).toUpperCase()] || validTiers.BRONZE) : ['BRONZE', 'SILVER', 'GOLD'];
+    const benefits = await prisma.tierBenefit.findMany({
+      where: { isActive: true, tier: { in: allowedTiers } },
+      orderBy: [{ tier: 'asc' }, { createdAt: 'asc' }],
+    });
+    res.json(benefits);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener beneficios por categoría.' });
+  }
+});
+
+// Admin: CRUD for tier benefits
+router.get('/tier-benefits/admin', authenticateToken, requireAdmin, async (_req, res) => {
+  try {
+    const benefits = await prisma.tierBenefit.findMany({ orderBy: [{ tier: 'asc' }, { createdAt: 'asc' }] });
+    res.json(benefits);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener beneficios.' });
+  }
+});
+
+router.post('/tier-benefits', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { tier, title, percentage, description } = req.body;
+    if (!tier || !title) {
+      res.status(400).json({ error: 'Se requiere la categoría y el título del beneficio.' });
+      return;
+    }
+    const benefit = await prisma.tierBenefit.create({
+      data: { tier, title, percentage: percentage ? Number(percentage) : null, description: description || null },
+    });
+    res.status(201).json(benefit);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear el beneficio.' });
+  }
+});
+
+router.put('/tier-benefits/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { tier, title, percentage, description, isActive } = req.body;
+    const benefit = await prisma.tierBenefit.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        tier: tier ?? undefined,
+        title: title ?? undefined,
+        percentage: percentage !== undefined ? (percentage ? Number(percentage) : null) : undefined,
+        description: description !== undefined ? (description || null) : undefined,
+        isActive: isActive !== undefined ? Boolean(isActive) : undefined,
+      },
+    });
+    res.json(benefit);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar el beneficio.' });
+  }
+});
+
+router.delete('/tier-benefits/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    await prisma.tierBenefit.delete({ where: { id: Number(req.params.id) } });
+    res.json({ message: 'Beneficio eliminado.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar el beneficio.' });
+  }
+});
+
 // Admin: cashback financial summary
 router.get('/summary', authenticateToken, requireAdmin, async (_req, res) => {
   try {

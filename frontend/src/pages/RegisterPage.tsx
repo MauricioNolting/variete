@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { City } from '../types';
@@ -26,7 +27,10 @@ export default function RegisterPage() {
     prefix: '+54',
     phoneNumber: '',
     email: '',
+    password: '',
+    confirmPassword: '',
   });
+  const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { data: cities = [] } = useQuery<City[]>({
@@ -36,8 +40,16 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.localName || !form.address || !form.cityId || !form.phoneNumber) {
+    if (!form.localName || !form.address || !form.cityId || !form.phoneNumber || !form.email || !form.password) {
       toast.error('Complete todos los campos obligatorios.');
+      return;
+    }
+    if (form.password.length < 6) {
+      toast.error('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      toast.error('Las contraseñas no coinciden.');
       return;
     }
     const phone = `${form.prefix}${form.phoneNumber.replace(/\s/g, '')}`;
@@ -48,10 +60,11 @@ export default function RegisterPage() {
         address: form.address,
         cityId: form.cityId,
         phone,
-        email: form.email || undefined,
+        email: form.email,
+        password: form.password,
       });
       setAuth('client', res.data.client, null, res.data.token);
-      toast.success('Registro completado exitosamente.');
+      toast.success('Registro completado exitosamente. ¡Bienvenido!');
       navigate('/');
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Error al registrarse.');
@@ -96,8 +109,7 @@ export default function RegisterPage() {
             <div>
               <label className="label">Número de teléfono <span className="text-gold-500">*</span></label>
               <div className="flex gap-2">
-                <select value={form.prefix} onChange={(e) => setForm((f) => ({ ...f, prefix: e.target.value }))}
-                  className="w-44 flex-shrink-0">
+                <select value={form.prefix} onChange={(e) => setForm((f) => ({ ...f, prefix: e.target.value }))} className="w-44 flex-shrink-0">
                   {COUNTRY_PREFIXES.map((p) => (
                     <option key={p.code} value={p.code}>{p.label}</option>
                   ))}
@@ -108,10 +120,39 @@ export default function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Correo electrónico <span className="text-dark-500">(opcional)</span></label>
+              <label className="label">Correo electrónico <span className="text-gold-500">*</span></label>
               <input type="email" placeholder="correo@ejemplo.com" value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-              <p className="text-xs text-dark-500 mt-1">Permite recibir confirmaciones de pedidos por email</p>
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+              <p className="text-xs text-dark-500 mt-1">Se usará para iniciar sesión y recibir confirmaciones de pedidos</p>
+            </div>
+
+            <div>
+              <label className="label">Contraseña <span className="text-gold-500">*</span></label>
+              <div className="relative">
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  placeholder="Mínimo 6 caracteres"
+                  value={form.password}
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  required
+                  className="pr-10"
+                />
+                <button type="button" onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-dark-400 hover:text-dark-200">
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Confirmar contraseña <span className="text-gold-500">*</span></label>
+              <input
+                type={showPwd ? 'text' : 'password'}
+                placeholder="Repita su contraseña"
+                value={form.confirmPassword}
+                onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+                required
+              />
             </div>
 
             <button type="submit" disabled={loading} className="btn-primary w-full mt-2">

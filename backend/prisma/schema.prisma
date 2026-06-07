@@ -22,6 +22,7 @@ model Client {
   cityId              Int?
   phone               String                @unique
   email               String?
+  passwordHash        String?
   cashbackBalance     Float                 @default(0)
   totalCashbackEarned Float                 @default(0)
   tierValidUntil      DateTime?
@@ -125,6 +126,16 @@ model CashbackTransaction {
 enum CashbackTransactionType {
   EARNED
   USED
+}
+
+model TierBenefit {
+  id          Int      @id @default(autoincrement())
+  tier        String   // BRONZE | SILVER | GOLD
+  title       String
+  percentage  Float?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
 }
 
 model Promotion {

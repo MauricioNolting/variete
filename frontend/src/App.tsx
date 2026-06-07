@@ -26,6 +26,7 @@ import CashbackAdminPage from './pages/admin/CashbackAdminPage';
 import ClientsAdminPage from './pages/admin/ClientsAdminPage';
 import ConfigAdminPage from './pages/admin/ConfigAdminPage';
 import BillingAdminPage from './pages/admin/BillingAdminPage';
+import TierBenefitsAdminPage from './pages/admin/TierBenefitsAdminPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { role } = useAuthStore();
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="cashback" element={<CashbackAdminPage />} />
         <Route path="clientes" element={<ClientsAdminPage />} />
         <Route path="facturacion" element={<BillingAdminPage />} />
+        <Route path="beneficios-cat" element={<TierBenefitsAdminPage />} />
         <Route path="configuracion" element={<ConfigAdminPage />} />
       </Route>
 
