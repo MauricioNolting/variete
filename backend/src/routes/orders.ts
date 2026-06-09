@@ -259,10 +259,7 @@ router.patch('/:id/status', authenticateToken, requireAdmin, async (req, res) =>
       data: { status },
     });
 
-    // Send email notification only when order starts being prepared (not on delivery)
-    if (order.client.email && status === 'PREPARING') {
-      sendOrderStatusEmail(order.client.email, order.client.localName, order.id, status).catch(() => {});
-    }
+    // No status-change emails — only the order confirmation (sent at purchase) is used
 
     res.json(updated);
   } catch (err) {
