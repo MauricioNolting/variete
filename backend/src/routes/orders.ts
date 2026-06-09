@@ -259,8 +259,8 @@ router.patch('/:id/status', authenticateToken, requireAdmin, async (req, res) =>
       data: { status },
     });
 
-    // Send email notification
-    if (order.client.email && (status === 'PREPARING' || status === 'DELIVERED')) {
+    // Send email notification only when order starts being prepared (not on delivery)
+    if (order.client.email && status === 'PREPARING') {
       sendOrderStatusEmail(order.client.email, order.client.localName, order.id, status).catch(() => {});
     }
 
