@@ -12,6 +12,7 @@ import cashbackRoutes from './routes/cashback';
 import clientRoutes from './routes/clients';
 import configRoutes from './routes/config';
 import uploadRoutes from './routes/upload';
+import adminRoutes from './routes/admin';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,6 +33,7 @@ app.use('/api/cashback', cashbackRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

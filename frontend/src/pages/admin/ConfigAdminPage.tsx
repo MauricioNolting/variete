@@ -1,13 +1,48 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Save, MessageSquare, Mail, AlertTriangle, Award } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Save, MessageSquare, Mail, AlertTriangle, Award, ShieldAlert, Trash2, Lock, X } from 'lucide-react';
 import api from '../../utils/api';
 import { GlobalConfig } from '../../types';
 import toast from 'react-hot-toast';
 
+type ResetTarget = 'orders' | 'clients' | 'products' | 'categories' | 'cashback' | 'cities';
+
+const RESET_OPTIONS: { id: ResetTarget; label: string; desc: string }[] = [
+  { id: 'orders',     label: 'Pedidos y movimientos de beneficios', desc: 'Borra todos los pedidos, sus ítems y las transacciones de beneficios. Reinicia el saldo y la categoría de cada cliente. No borra clientes ni productos.' },
+  { id: 'clients',    label: 'Clientes',                            desc: 'Borra todos los clientes junto con sus pedidos y movimientos de beneficios.' },
+  { id: 'products',   label: 'Productos',                           desc: 'Borra todos los productos (e imágenes). Implica borrar también los pedidos e ítems que los referencian.' },
+  { id: 'categories', label: 'Categorías',                          desc: 'Borra todas las categorías. Implica borrar también los productos y pedidos asociados.' },
+  { id: 'cashback',   label: 'Reglas y beneficios',                 desc: 'Borra reglas de cashback, beneficios por nivel y transacciones. Reinicia los saldos de los clientes.' },
+  { id: 'cities',     label: 'Ciudades y fechas de visita',         desc: 'Borra todas las ciudades y sus fechas de visita. Desvincula a los clientes de su ciudad.' },
+];
+
 export default function ConfigAdminPage() {
   const qc = useQueryClient();
+
+  // ── Reseteo de datos (zona de peligro) ──────────────────────────────────
+  const [resetSel, setResetSel] = useState<Record<ResetTarget, boolean>>({
+    orders: false, clients: false, products: false, categories: false, cashback: false, cities: false,
+  });
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+
+  const selectedTargets = (Object.keys(resetSel) as ResetTarget[]).filter((k) => resetSel[k]);
+
+  const resetMutation = useMutation({
+    mutationFn: () => api.post('/admin/reset', { password: resetPassword, targets: selectedTargets }),
+    onSuccess: (res) => {
+      const d = res.data.deleted || {};
+      const parts = Object.entries(d).map(([k, v]) => `${v} ${k}`);
+      toast.success(`Reseteo completado.${parts.length ? ' Eliminados: ' + parts.join(', ') + '.' : ''}`, { duration: 6000 });
+      setShowResetModal(false);
+      setResetPassword('');
+      setResetSel({ orders: false, clients: false, products: false, categories: false, cashback: false, cities: false });
+      // Refrescar todo lo que pudo cambiar
+      qc.invalidateQueries();
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Error al resetear los datos.'),
+  });
   const [form, setForm] = useState({
     lowStockThreshold: '10',
     adminWhatsappNumber: '',
@@ -179,6 +214,118 @@ export default function ConfigAdminPage() {
       <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="btn-primary w-full">
         <Save size={18} /> {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
       </button>
+
+      {/* ── Zona de peligro: reseteo de datos ──────────────────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+        className="card p-6 space-y-4 border-red-700/40 bg-red-950/10">
+        <div className="border-b border-red-900/40 pb-3">
+          <h3 className="font-semibold text-red-300 flex items-center gap-2">
+            <ShieldAlert size={18} className="text-red-400" /> Zona de peligro — Reseteo de datos
+          </h3>
+          <p className="text-xs text-dark-400 mt-1">
+            Elimina permanentemente los datos seleccionados para empezar de cero. Esta acción no se puede deshacer y pedirá su contraseña.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          {RESET_OPTIONS.map((opt) => (
+            <label key={opt.id}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                resetSel[opt.id] ? 'border-red-600/50 bg-red-950/30' : 'border-dark-700 hover:border-dark-600'
+              }`}>
+              <input
+                type="checkbox"
+                checked={resetSel[opt.id]}
+                onChange={(e) => setResetSel((s) => ({ ...s, [opt.id]: e.target.checked }))}
+                className="w-4 h-4 mt-0.5 accent-red-500 flex-shrink-0"
+              />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-dark-100">{opt.label}</p>
+                <p className="text-xs text-dark-500 leading-relaxed">{opt.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setShowResetModal(true)}
+          disabled={selectedTargets.length === 0}
+          className="w-full flex items-center justify-center gap-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-lg transition-colors active:scale-95"
+        >
+          <Trash2 size={18} /> Resetear datos seleccionados
+          {selectedTargets.length > 0 && <span className="bg-red-900/60 rounded-full px-2 py-0.5 text-xs">{selectedTargets.length}</span>}
+        </button>
+      </motion.div>
+
+      {/* ── Modal de confirmación ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-950/85 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-dark-900 rounded-2xl border border-red-700/50 w-full max-w-md"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-dark-800">
+                <h2 className="font-bold text-red-300 flex items-center gap-2">
+                  <ShieldAlert size={18} className="text-red-400" /> Confirmar reseteo
+                </h2>
+                <button onClick={() => { setShowResetModal(false); setResetPassword(''); }}
+                  className="p-2 hover:bg-dark-800 rounded-lg text-dark-400">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-dark-300">
+                  Estás por eliminar permanentemente:
+                </p>
+                <ul className="space-y-1.5">
+                  {selectedTargets.map((t) => {
+                    const opt = RESET_OPTIONS.find((o) => o.id === t)!;
+                    return (
+                      <li key={t} className="flex items-center gap-2 text-sm text-red-300 bg-red-950/30 border border-red-800/40 rounded-lg px-3 py-2">
+                        <Trash2 size={13} className="flex-shrink-0" /> {opt.label}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="text-xs text-amber-400 bg-amber-950/20 border border-amber-700/30 rounded-lg p-2.5">
+                  ⚠️ Esta acción es irreversible. Verificá bien antes de continuar.
+                </p>
+
+                <div>
+                  <label className="label flex items-center gap-1.5">
+                    <Lock size={13} className="text-red-400" /> Ingresá tu contraseña de administrador
+                  </label>
+                  <input
+                    type="password"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && resetPassword) resetMutation.mutate(); }}
+                    placeholder="Contraseña"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="p-5 border-t border-dark-800 flex gap-3">
+                <button onClick={() => { setShowResetModal(false); setResetPassword(''); }} className="btn-secondary flex-1">
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => resetMutation.mutate()}
+                  disabled={!resetPassword || resetMutation.isPending}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-lg transition-colors active:scale-95"
+                >
+                  <Trash2 size={16} /> {resetMutation.isPending ? 'Eliminando...' : 'Eliminar definitivamente'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
