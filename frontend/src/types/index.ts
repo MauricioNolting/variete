@@ -65,6 +65,7 @@ export interface CashbackRule {
   category?: Category;
   productId?: number;
   product?: Product;
+  expiryDays?: number;
   isActive: boolean;
   createdAt: string;
 }
@@ -83,6 +84,7 @@ export interface CashbackTransaction {
   amount: number;
   type: 'EARNED' | 'USED';
   ruleDescription?: string;
+  expiresAt?: string | null;
   createdAt: string;
   order?: { id: number; createdAt: string; totalAmount: number };
 }

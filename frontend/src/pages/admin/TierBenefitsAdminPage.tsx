@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, Star } from 'lucide-react';
+import { Plus, Pencil, Trash2, Star, Timer } from 'lucide-react';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,7 @@ interface TierBenefit {
   title: string;
   percentage?: number;
   description?: string;
+  expiryDays?: number;
   isActive: boolean;
 }
 
@@ -20,7 +21,7 @@ const TIER_OPTIONS = [
   { value: 'GOLD',   label: '🥇 Oro',   color: 'text-yellow-400' },
 ];
 
-const emptyForm = { tier: 'BRONZE', title: '', percentage: '', description: '' };
+const emptyForm = { tier: 'BRONZE', title: '', percentage: '', description: '', expiryDays: '' };
 
 export default function TierBenefitsAdminPage() {
   const qc = useQueryClient();
@@ -39,6 +40,7 @@ export default function TierBenefitsAdminPage() {
       title: form.title,
       percentage: form.percentage ? Number(form.percentage) : undefined,
       description: form.description || undefined,
+      expiryDays: form.expiryDays ? Number(form.expiryDays) : undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tier-benefits-admin'] });
@@ -55,6 +57,7 @@ export default function TierBenefitsAdminPage() {
       title: form.title,
       percentage: form.percentage ? Number(form.percentage) : null,
       description: form.description || null,
+      expiryDays: form.expiryDays ? Number(form.expiryDays) : null,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tier-benefits-admin'] });
@@ -82,7 +85,7 @@ export default function TierBenefitsAdminPage() {
 
   const handleEdit = (b: TierBenefit) => {
     setEditingId(b.id);
-    setForm({ tier: b.tier, title: b.title, percentage: b.percentage?.toString() || '', description: b.description || '' });
+    setForm({ tier: b.tier, title: b.title, percentage: b.percentage?.toString() || '', description: b.description || '', expiryDays: b.expiryDays?.toString() || '' });
     setShowForm(true);
   };
 
@@ -159,6 +162,17 @@ export default function TierBenefitsAdminPage() {
               className="resize-none" />
           </div>
 
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <Timer size={13} className="text-sky-400" /> Vencimiento del saldo ganado (opcional)
+            </label>
+            <input type="number" placeholder="Ej: 30 (días)" min="1"
+              value={form.expiryDays} onChange={(e) => setForm((f) => ({ ...f, expiryDays: e.target.value }))} />
+            <p className="text-xs text-dark-500 mt-1">
+              El beneficio que el cliente acumule por esta categoría vencerá a los N días desde la compra. Vacío = sin vencimiento propio (usa la configuración global).
+            </p>
+          </div>
+
           <div className="flex gap-3">
             <button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}
               className="btn-primary flex-1">
@@ -200,6 +214,11 @@ export default function TierBenefitsAdminPage() {
                           )}
                         </p>
                         {b.description && <p className="text-xs text-dark-400 mt-0.5">{b.description}</p>}
+                        {b.expiryDays && (
+                          <p className="text-xs text-sky-400 flex items-center gap-1 mt-1">
+                            <Timer size={11} /> Saldo vence a los {b.expiryDays} días de la compra
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button

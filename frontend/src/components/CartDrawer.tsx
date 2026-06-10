@@ -1,14 +1,18 @@
 import { motion } from 'framer-motion';
-import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
+import { X, Minus, Plus, Trash2, ShoppingBag, ArrowRight, Gift } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../store/cart';
 import { useAuthStore } from '../store/auth';
 import { formatCurrency } from '../utils/format';
 
 export default function CartDrawer() {
-  const { items, removeItem, updateQuantity, closeCart, getSubtotal } = useCartStore();
+  const { items, removeItem, updateQuantity, closeCart, getSubtotal, useCashback, cashbackToUse, setCashbackUsage } = useCartStore();
   const { client } = useAuthStore();
   const subtotal = getSubtotal();
+  const cashbackBalance = client?.cashbackBalance ?? 0;
+  const maxApplicable = Math.min(cashbackBalance, subtotal);
+  const appliedCashback = useCashback ? cashbackToUse : 0;
+  const total = subtotal - appliedCashback;
 
   return (
     <>
@@ -106,15 +110,50 @@ export default function CartDrawer() {
         {/* Footer */}
         {items.length > 0 && (
           <div className="border-t border-dark-800 p-4 space-y-3">
-            {client?.cashbackBalance !== undefined && client.cashbackBalance > 0 && (
+            {/* Cashback toggle */}
+            {cashbackBalance > 0 && (
+              <div className="bg-emerald-950/30 border border-emerald-700/30 rounded-xl p-3 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={useCashback}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const amount = cashbackToUse > 0 ? Math.min(cashbackToUse, maxApplicable) : maxApplicable;
+                        setCashbackUsage(true, amount);
+                      } else {
+                        setCashbackUsage(false, 0);
+                      }
+                    }}
+                    className="w-4 h-4 rounded accent-emerald-500 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="text-xs text-emerald-300 font-medium flex items-center gap-1.5 flex-1">
+                    <Gift size={12} /> Usar saldo de beneficios
+                  </span>
+                  <span className="text-emerald-400 text-xs">{formatCurrency(cashbackBalance)}</span>
+                </label>
+                {useCashback && appliedCashback > 0 && (
+                  <div className="flex justify-between text-xs pl-6">
+                    <span className="text-emerald-500">Descuento aplicado:</span>
+                    <span className="text-emerald-400 font-semibold">-{formatCurrency(appliedCashback)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-dark-400">Subtotal:</span>
+              <span className="text-dark-200">{formatCurrency(subtotal)}</span>
+            </div>
+            {appliedCashback > 0 && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-emerald-400">Saldo de beneficios disponible:</span>
-                <span className="font-semibold text-emerald-400">{formatCurrency(client.cashbackBalance)}</span>
+                <span className="text-emerald-500">Beneficios:</span>
+                <span className="text-emerald-400 font-semibold">-{formatCurrency(appliedCashback)}</span>
               </div>
             )}
             <div className="flex items-center justify-between">
-              <span className="text-dark-300 text-sm">Subtotal:</span>
-              <span className="text-lg font-bold text-dark-50">{formatCurrency(subtotal)}</span>
+              <span className="text-dark-300 text-sm font-semibold">Total a pagar:</span>
+              <span className="text-lg font-bold text-dark-50">{formatCurrency(total)}</span>
             </div>
             <Link
               to="/checkout"

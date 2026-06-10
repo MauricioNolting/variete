@@ -59,38 +59,56 @@ router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: 
       orderBy: { createdAt: 'desc' },
     });
 
-    // Calcular saldo real (excluyendo vencidos)
-    const effectiveBalance = transactions.reduce((acc, t) => {
-      if (t.type === 'EARNED') {
-        if (!t.expiresAt || t.expiresAt > now) return acc + t.amount;
-        return acc; // vencido
-      }
-      return acc - t.amount; // USED
-    }, 0);
+    // Total de saldo consumido (USED)
+    const totalUsed = transactions
+      .filter((t) => t.type === 'USED')
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    // Próximo vencimiento (para alerta rápida)
-    const nextExpiry = transactions
-      .filter((t) => t.type === 'EARNED' && t.expiresAt && t.expiresAt > now)
-      .sort((a, b) => new Date(a.expiresAt!).getTime() - new Date(b.expiresAt!).getTime())[0];
+    // Lotes EARNED activos (no vencidos). Cada lote es consumible.
+    // Orden de consumo FIFO: primero el que vence antes; los que no vencen, al final.
+    const earnedLots = transactions
+      .filter((t) => t.type === 'EARNED' && (!t.expiresAt || t.expiresAt > now))
+      .map((t) => ({ amount: t.amount, expiresAt: t.expiresAt, createdAt: t.createdAt }))
+      .sort((a, b) => {
+        if (a.expiresAt && b.expiresAt) return a.expiresAt.getTime() - b.expiresAt.getTime();
+        if (a.expiresAt) return -1;  // a vence, b no → a primero
+        if (b.expiresAt) return 1;   // b vence, a no → b primero
+        return a.createdAt.getTime() - b.createdAt.getTime(); // ambos sin vencimiento → más antiguo primero
+      });
 
-    // Saldos a vencer: todos los lotes EARNED activos con fecha de vencimiento futura
-    // Agrupados por fecha de vencimiento para mayor claridad
-    const activeEarned = transactions.filter(
-      (t) => t.type === 'EARNED' && t.expiresAt && t.expiresAt > now
-    );
+    // Consumir el saldo usado, empezando por los lotes que vencen antes
+    let toConsume = totalUsed;
+    for (const lot of earnedLots) {
+      if (toConsume <= 0) break;
+      const consume = Math.min(lot.amount, toConsume);
+      lot.amount -= consume;
+      toConsume -= consume;
+    }
 
-    // Group by expiresAt date string
+    // Lotes que aún tienen saldo disponible
+    const liveLots = earnedLots.filter((l) => l.amount > 0.001);
+
+    // Saldo efectivo = suma de los lotes vivos (incluye los que no vencen)
+    const effectiveBalance = liveLots.reduce((sum, l) => sum + l.amount, 0);
+
+    // Saldos a vencer: solo lotes vivos que tienen fecha de vencimiento, agrupados por fecha
     const grouped: Record<string, { expiresAt: Date; amount: number; ordersCount: number }> = {};
-    for (const t of activeEarned) {
-      const key = t.expiresAt!.toISOString().split('T')[0];
+    for (const lot of liveLots) {
+      if (!lot.expiresAt) continue;
+      const key = lot.expiresAt.toISOString().split('T')[0];
       if (!grouped[key]) {
-        grouped[key] = { expiresAt: t.expiresAt!, amount: 0, ordersCount: 0 };
+        grouped[key] = { expiresAt: lot.expiresAt, amount: 0, ordersCount: 0 };
       }
-      grouped[key].amount += t.amount;
+      grouped[key].amount += lot.amount;
       grouped[key].ordersCount += 1;
     }
     const pendingExpirations = Object.values(grouped)
       .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+
+    // Próximo vencimiento = el lote vivo que vence antes
+    const nextExpiry = pendingExpirations.length > 0
+      ? { expiresAt: pendingExpirations[0].expiresAt }
+      : null;
 
     res.json({
       transactions,
@@ -119,7 +137,7 @@ router.get('/rules', authenticateToken, requireAdmin, async (_req, res) => {
 // Admin: create rule
 router.post('/rules', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { type, percentage, minAmount, startDate, endDate, specificDates, categoryId, productId } = req.body;
+    const { type, percentage, minAmount, startDate, endDate, specificDates, categoryId, productId, expiryDays } = req.body;
     if (!type || !percentage) {
       res.status(400).json({ error: 'Se requiere tipo y porcentaje de la regla.' });
       return;
@@ -134,6 +152,7 @@ router.post('/rules', authenticateToken, requireAdmin, async (req, res) => {
         specificDates: specificDates || null,
         categoryId: categoryId ? Number(categoryId) : null,
         productId: productId ? Number(productId) : null,
+        expiryDays: expiryDays ? Number(expiryDays) : null,
       },
       include: { category: true, product: true },
     });
@@ -146,7 +165,7 @@ router.post('/rules', authenticateToken, requireAdmin, async (req, res) => {
 // Admin: update rule
 router.put('/rules/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { percentage, isActive, minAmount, startDate, endDate, specificDates } = req.body;
+    const { percentage, isActive, minAmount, startDate, endDate, specificDates, expiryDays } = req.body;
     const rule = await prisma.cashbackRule.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -156,6 +175,7 @@ router.put('/rules/:id', authenticateToken, requireAdmin, async (req, res) => {
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         specificDates: specificDates !== undefined ? specificDates : undefined,
+        expiryDays: expiryDays !== undefined ? (expiryDays ? Number(expiryDays) : null) : undefined,
       },
       include: { category: true, product: true },
     });
@@ -253,13 +273,19 @@ router.get('/tier-benefits/admin', authenticateToken, requireAdmin, async (_req,
 
 router.post('/tier-benefits', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { tier, title, percentage, description } = req.body;
+    const { tier, title, percentage, description, expiryDays } = req.body;
     if (!tier || !title) {
       res.status(400).json({ error: 'Se requiere la categoría y el título del beneficio.' });
       return;
     }
     const benefit = await prisma.tierBenefit.create({
-      data: { tier, title, percentage: percentage ? Number(percentage) : null, description: description || null },
+      data: {
+        tier,
+        title,
+        percentage: percentage ? Number(percentage) : null,
+        description: description || null,
+        expiryDays: expiryDays ? Number(expiryDays) : null,
+      },
     });
     res.status(201).json(benefit);
   } catch (err) {
@@ -269,7 +295,7 @@ router.post('/tier-benefits', authenticateToken, requireAdmin, async (req, res) 
 
 router.put('/tier-benefits/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { tier, title, percentage, description, isActive } = req.body;
+    const { tier, title, percentage, description, isActive, expiryDays } = req.body;
     const benefit = await prisma.tierBenefit.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -277,6 +303,7 @@ router.put('/tier-benefits/:id', authenticateToken, requireAdmin, async (req, re
         title: title ?? undefined,
         percentage: percentage !== undefined ? (percentage ? Number(percentage) : null) : undefined,
         description: description !== undefined ? (description || null) : undefined,
+        expiryDays: expiryDays !== undefined ? (expiryDays ? Number(expiryDays) : null) : undefined,
         isActive: isActive !== undefined ? Boolean(isActive) : undefined,
       },
     });

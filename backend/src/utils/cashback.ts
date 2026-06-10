@@ -14,7 +14,7 @@ export async function calculateCashback(
   orderTotal: number,
   orderDate: Date = new Date(),
   clientTier?: string
-): Promise<{ percentage: number; amount: number; ruleDescription: string }> {
+): Promise<{ percentage: number; amount: number; ruleDescription: string; expiryDays: number | null }> {
   const [rules, config] = await Promise.all([
     prisma.cashbackRule.findMany({ where: { isActive: true } }),
     prisma.globalCashbackConfig.findUnique({ where: { id: 1 } }),
@@ -64,6 +64,7 @@ export async function calculateCashback(
   }
 
   let finalPercentage = 0;
+  let ruleExpiryDays: number | null = null;
   const descParts: string[] = [];
 
   if (applicableRules.length > 0) {
@@ -71,10 +72,16 @@ export async function calculateCashback(
       const rawPct = applicableRules.reduce((sum, r) => sum + r.percentage, 0);
       finalPercentage = config.maxPercentage ? Math.min(rawPct, config.maxPercentage) : rawPct;
       descParts.push(`Reglas acumuladas: ${applicableRules.map((r) => ruleTypeLabel(r.rule)).join(', ')}`);
+      // For stacked rules: use the most restrictive (minimum) expiryDays among rules that have one
+      const stackedDays = applicableRules
+        .map((r) => r.rule.expiryDays)
+        .filter((d): d is number => d !== null && d !== undefined);
+      if (stackedDays.length > 0) ruleExpiryDays = Math.min(...stackedDays);
     } else {
       const best = applicableRules.reduce((a, b) => (a.percentage >= b.percentage ? a : b));
       finalPercentage = best.percentage;
       descParts.push(ruleTypeLabel(best.rule));
+      ruleExpiryDays = best.rule.expiryDays ?? null;
     }
   }
 
@@ -82,21 +89,29 @@ export async function calculateCashback(
   if (clientTier) {
     const tierBenefits = await prisma.tierBenefit.findMany({
       where: { isActive: true, tier: clientTier.toUpperCase() },
-      select: { percentage: true, title: true },
+      select: { percentage: true, title: true, expiryDays: true },
     });
-    const tierPct = tierBenefits
-      .filter((b) => b.percentage && b.percentage > 0)
-      .reduce((sum, b) => sum + (b.percentage ?? 0), 0);
+    const contributing = tierBenefits.filter((b) => b.percentage && b.percentage > 0);
+    const tierPct = contributing.reduce((sum, b) => sum + (b.percentage ?? 0), 0);
 
     if (tierPct > 0) {
       finalPercentage += tierPct;
       const tierLabel = clientTier === 'GOLD' ? 'Oro' : clientTier === 'SILVER' ? 'Plata' : 'Bronce';
       descParts.push(`Categoría ${tierLabel} (+${tierPct}%)`);
+
+      // Most restrictive (minimum) expiry among tier benefits that define one
+      const tierDays = contributing
+        .map((b) => b.expiryDays)
+        .filter((d): d is number => d !== null && d !== undefined);
+      if (tierDays.length > 0) {
+        const minTierDays = Math.min(...tierDays);
+        ruleExpiryDays = ruleExpiryDays === null ? minTierDays : Math.min(ruleExpiryDays, minTierDays);
+      }
     }
   }
 
   if (finalPercentage === 0) {
-    return { percentage: 0, amount: 0, ruleDescription: 'Sin regla aplicable' };
+    return { percentage: 0, amount: 0, ruleDescription: 'Sin regla aplicable', expiryDays: null };
   }
 
   // ── 3. Tope global de porcentaje ─────────────────────────────────────────
@@ -115,6 +130,7 @@ export async function calculateCashback(
     percentage: finalPercentage,
     amount,
     ruleDescription: descParts.join(' + ') || 'Beneficio aplicado',
+    expiryDays: ruleExpiryDays,
   };
 }
 

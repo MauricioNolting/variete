@@ -5,6 +5,27 @@ import { authenticateToken, requireAdmin, AuthRequest } from '../middlewares/aut
 const router = Router();
 const prisma = new PrismaClient();
 
+// Admin: get currently-online clients (active within the last 5 minutes)
+router.get('/online', authenticateToken, requireAdmin, async (_req, res) => {
+  try {
+    const ONLINE_WINDOW_MIN = 5;
+    const since = new Date(Date.now() - ONLINE_WINDOW_MIN * 60 * 1000);
+    const clients = await prisma.client.findMany({
+      where: { lastSeenAt: { gte: since } },
+      select: {
+        id: true,
+        localName: true,
+        lastSeenAt: true,
+        city: { select: { name: true } },
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    });
+    res.json({ count: clients.length, windowMinutes: ONLINE_WINDOW_MIN, clients });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios conectados.' });
+  }
+});
+
 // Admin: get all clients
 router.get('/', authenticateToken, requireAdmin, async (_req, res) => {
   try {

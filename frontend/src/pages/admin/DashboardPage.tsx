@@ -1,16 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ShoppingBag, TrendingUp, AlertTriangle, Gift, Clock, CheckCircle } from 'lucide-react';
+import { ShoppingBag, TrendingUp, AlertTriangle, Gift, Clock, CheckCircle, Users } from 'lucide-react';
 import api from '../../utils/api';
 import { formatCurrency } from '../../utils/format';
 import { Link } from 'react-router-dom';
 import QRCodeDisplay from '../../components/QRCodeDisplay';
+
+interface OnlineClient {
+  id: number;
+  localName: string;
+  lastSeenAt: string;
+  city?: { name: string };
+}
 
 export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/orders/admin/stats').then((r) => r.data),
     refetchInterval: 30000,
+  });
+
+  const { data: online } = useQuery<{ count: number; windowMinutes: number; clients: OnlineClient[] }>({
+    queryKey: ['online-clients'],
+    queryFn: () => api.get('/clients/online').then((r) => r.data),
+    refetchInterval: 20000, // refresh presence every 20s
   });
 
   const statCards = [
@@ -65,6 +78,48 @@ export default function DashboardPage() {
             {formatCurrency((stats?.cashbackEmitted || 0) - (stats?.cashbackUsed || 0))}
           </p>
         </div>
+      </div>
+
+      {/* Online users */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-dark-100 flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              {(online?.count ?? 0) > 0 && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${(online?.count ?? 0) > 0 ? 'bg-emerald-500' : 'bg-dark-600'}`} />
+            </span>
+            <Users size={18} className="text-emerald-400" /> Usuarios conectados
+          </h3>
+          <span className="text-2xl font-black text-emerald-400">{online?.count ?? 0}</span>
+        </div>
+        {(online?.clients?.length ?? 0) === 0 ? (
+          <p className="text-sm text-dark-500">No hay clientes activos en este momento.</p>
+        ) : (
+          <div className="space-y-2">
+            {online!.clients.map((c) => {
+              const secsAgo = Math.max(0, Math.round((Date.now() - new Date(c.lastSeenAt).getTime()) / 1000));
+              const activity = secsAgo < 60 ? 'activo ahora' : `hace ${Math.round(secsAgo / 60)} min`;
+              return (
+                <div key={c.id} className="flex items-center justify-between py-2 border-b border-dark-800 last:border-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    <span className="text-dark-200 text-sm truncate">{c.localName}</span>
+                    {c.city?.name && <span className="text-dark-500 text-xs flex-shrink-0">· {c.city.name}</span>}
+                  </div>
+                  <span className="text-xs text-emerald-500/80 flex-shrink-0">{activity}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-xs text-dark-600 mt-3">
+          Se consideran conectados los clientes con actividad en los últimos {online?.windowMinutes ?? 5} minutos.
+        </p>
       </div>
 
       {/* QR Code */}

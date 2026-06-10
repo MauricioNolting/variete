@@ -67,7 +67,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
     const clientTier = tierResult?.tier;
 
     // Calculate cashback earned (includes tier benefits if applicable)
-    const { amount: cashbackEarned, ruleDescription } = await calculateCashback(
+    const { amount: cashbackEarned, ruleDescription, expiryDays: ruleExpiryDays } = await calculateCashback(
       orderItems,
       totalAmount,
       new Date(),
@@ -119,9 +119,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
       });
 
       // Calcular fecha de vencimiento del saldo ganado
+      // Prioridad: expiryDays de la regla que aplicó → config global → sin vencimiento
       const cashbackConfig = await tx.globalCashbackConfig.findUnique({ where: { id: 1 } });
-      const expiresAt = cashbackConfig?.balanceExpiryDays
-        ? new Date(Date.now() + cashbackConfig.balanceExpiryDays * 24 * 60 * 60 * 1000)
+      const effectiveExpiryDays = ruleExpiryDays ?? cashbackConfig?.balanceExpiryDays ?? null;
+      const expiresAt = effectiveExpiryDays
+        ? new Date(Date.now() + effectiveExpiryDays * 24 * 60 * 60 * 1000)
         : null;
 
       // Record cashback transactions

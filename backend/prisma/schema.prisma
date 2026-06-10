@@ -26,6 +26,7 @@ model Client {
   cashbackBalance     Float                 @default(0)
   totalCashbackEarned Float                 @default(0)
   tierValidUntil      DateTime?
+  lastSeenAt          DateTime?
   createdAt           DateTime              @default(now())
   city                City?                 @relation(fields: [cityId], references: [id])
   orders              Order[]
@@ -86,6 +87,7 @@ model CashbackRule {
   specificDates Json?
   categoryId    Int?
   productId     Int?
+  expiryDays    Int?
   isActive      Boolean           @default(true)
   createdAt     DateTime          @default(now())
   category      Category?         @relation(fields: [categoryId], references: [id])
@@ -134,6 +136,7 @@ model TierBenefit {
   title       String
   percentage  Float?
   description String?
+  expiryDays  Int?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 }

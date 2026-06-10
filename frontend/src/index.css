@@ -43,6 +43,32 @@
   input::placeholder, textarea::placeholder {
     @apply text-dark-500;
   }
+
+  /* Ocultar las flechitas nativas de los inputs number (feas y dependientes del navegador) */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@layer components {
+  /* Stepper numérico personalizado (incrementar / disminuir) */
+  .stepper {
+    @apply inline-flex items-center bg-dark-800 border border-dark-700 rounded-lg overflow-hidden;
+  }
+  .stepper input {
+    @apply w-10 text-center bg-transparent border-0 p-0 py-1 text-sm text-dark-100 rounded-none;
+    @apply focus:outline-none focus:ring-0 focus:border-0;
+  }
+  .stepper-btn {
+    @apply w-7 h-7 flex items-center justify-center text-dark-400 transition-colors flex-shrink-0;
+    @apply hover:bg-dark-700 active:scale-90;
+  }
 }
 
 @layer components {

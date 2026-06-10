@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, X, Upload, Image } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Minus, Pencil, Trash2, X, Upload, Image, FolderPlus, Check, Loader2, Filter, ArrowUpAZ, Clock } from 'lucide-react';
 import api from '../../utils/api';
 import { Product, Category } from '../../types';
 import { formatCurrency } from '../../utils/format';
@@ -29,6 +29,15 @@ export default function ProductsAdminPage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Inline category creation
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [creatingCat, setCreatingCat] = useState(false);
+
+  // Filter & sort
+  const [filterCategoryId, setFilterCategoryId] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'createdAt'>('createdAt');
+
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ['admin-products'],
     queryFn: () => api.get('/products/admin/all').then((r) => r.data),
@@ -38,6 +47,36 @@ export default function ProductsAdminPage() {
     queryKey: ['categories'],
     queryFn: () => api.get('/categories').then((r) => r.data),
   });
+
+  const sortedCategories = [...categories].sort((a, b) =>
+    a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+  );
+
+  // Derived list: filter by category, then sort
+  const visibleProducts = [...products]
+    .filter((p) => !filterCategoryId || String(p.categoryId) === filterCategoryId)
+    .sort((a, b) =>
+      sortBy === 'name'
+        ? a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+  const handleCreateCategory = async () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    setCreatingCat(true);
+    try {
+      const res = await api.post('/categories', { name });
+      await qc.invalidateQueries({ queryKey: ['categories'] });
+      setForm((f) => ({ ...f, categoryId: String(res.data.id) }));
+      setNewCatName('');
+      setShowNewCat(false);
+    } catch {
+      // error silently — category creation failure
+    } finally {
+      setCreatingCat(false);
+    }
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -129,16 +168,73 @@ export default function ProductsAdminPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="section-title">Gestión de productos</h1>
-          <p className="text-dark-400 text-sm">{products.length} productos registrados</p>
+          <p className="text-dark-400 text-sm">
+            {visibleProducts.length !== products.length
+              ? `${visibleProducts.length} de ${products.length} productos`
+              : `${products.length} productos registrados`}
+          </p>
         </div>
         <button onClick={openCreate} className="btn-primary">
           <Plus size={18} /> Nuevo producto
         </button>
       </div>
 
+      {/* Filter & sort bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Filter size={15} className="text-dark-500 flex-shrink-0" />
+
+        {/* Category filter */}
+        <select
+          value={filterCategoryId}
+          onChange={(e) => setFilterCategoryId(e.target.value)}
+          className="text-sm py-2 px-3 bg-dark-800 border-dark-700 rounded-xl text-dark-300 min-w-[160px]"
+        >
+          <option value="">Todas las categorías</option>
+          {sortedCategories.map((c) => (
+            <option key={c.id} value={String(c.id)}>{c.name}</option>
+          ))}
+        </select>
+
+        {/* Sort */}
+        <div className="flex gap-1 bg-dark-800 rounded-xl p-1">
+          <button
+            onClick={() => setSortBy('createdAt')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              sortBy === 'createdAt' ? 'bg-dark-600 text-dark-100' : 'text-dark-400 hover:text-dark-200'
+            }`}
+          >
+            <Clock size={13} /> Más recientes
+          </button>
+          <button
+            onClick={() => setSortBy('name')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              sortBy === 'name' ? 'bg-dark-600 text-dark-100' : 'text-dark-400 hover:text-dark-200'
+            }`}
+          >
+            <ArrowUpAZ size={13} /> A → Z
+          </button>
+        </div>
+
+        {/* Clear filter chip */}
+        {filterCategoryId && (
+          <button
+            onClick={() => setFilterCategoryId('')}
+            className="flex items-center gap-1 text-xs text-gold-400 hover:text-gold-300 transition-colors"
+          >
+            <X size={12} /> Limpiar filtro
+          </button>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => <div key={i} className="card h-48 animate-pulse" />)}
+        </div>
+      ) : visibleProducts.length === 0 ? (
+        <div className="card p-8 text-center text-dark-500">
+          {filterCategoryId
+            ? 'No hay productos en esta categoría.'
+            : 'No hay productos registrados aún.'}
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -154,7 +250,7 @@ export default function ProductsAdminPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => {
+              {visibleProducts.map((p) => {
                 const img = p.images[p.mainImageIndex];
                 return (
                   <tr key={p.id} className="border-b border-dark-800/50 hover:bg-dark-800/30 transition-colors">
@@ -168,14 +264,32 @@ export default function ProductsAdminPage() {
                     </td>
                     <td className="p-4 hidden md:table-cell text-dark-400">{p.category?.name}</td>
                     <td className="p-4 text-right font-semibold text-dark-100">{formatCurrency(p.price)}</td>
-                    <td className="p-4 text-right">
-                      <input
-                        type="number"
-                        value={p.stock}
-                        onChange={(e) => stockMutation.mutate({ id: p.id, stock: Number(e.target.value) })}
-                        className="w-16 text-right py-1 px-2 text-sm"
-                        min={0}
-                      />
+                    <td className="p-4">
+                      <div className="flex justify-end">
+                        <div className="stepper">
+                          <button
+                            type="button"
+                            onClick={() => stockMutation.mutate({ id: p.id, stock: Math.max(0, p.stock - 1) })}
+                            disabled={p.stock <= 0}
+                            className="stepper-btn hover:text-red-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-dark-400"
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <input
+                            type="number"
+                            value={p.stock}
+                            onChange={(e) => stockMutation.mutate({ id: p.id, stock: Math.max(0, Number(e.target.value)) })}
+                            min={0}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => stockMutation.mutate({ id: p.id, stock: p.stock + 1 })}
+                            className="stepper-btn hover:text-emerald-400"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
+                      </div>
                     </td>
                     <td className="p-4 text-center">
                       <span className={p.isActive ? 'badge-green' : 'badge-red'}>
@@ -227,10 +341,64 @@ export default function ProductsAdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Categoría <span className="text-gold-500">*</span></label>
-                  <select value={form.categoryId} onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}>
-                    <option value="">Seleccionar</option>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={form.categoryId}
+                      onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+                      className="flex-1 min-w-0"
+                    >
+                      <option value="">Seleccionar</option>
+                      {sortedCategories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      title="Nueva categoría"
+                      onClick={() => { setShowNewCat((v) => !v); setNewCatName(''); }}
+                      className="flex-shrink-0 p-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-400 hover:text-gold-400 border border-dark-700 transition-colors"
+                    >
+                      <FolderPlus size={16} />
+                    </button>
+                  </div>
+
+                  {/* Inline new category form */}
+                  <AnimatePresence>
+                    {showNewCat && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-2 flex gap-1.5">
+                          <input
+                            autoFocus
+                            value={newCatName}
+                            onChange={(e) => setNewCatName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategory(); } if (e.key === 'Escape') setShowNewCat(false); }}
+                            placeholder="Nombre de nueva categoría"
+                            className="flex-1 text-sm py-1.5 px-3"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateCategory}
+                            disabled={creatingCat || !newCatName.trim()}
+                            className="flex-shrink-0 p-2 rounded-lg bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-400 border border-emerald-700/40 transition-colors disabled:opacity-40"
+                          >
+                            {creatingCat ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowNewCat(false)}
+                            className="flex-shrink-0 p-2 rounded-lg bg-dark-800 hover:bg-dark-700 text-dark-400 border border-dark-700 transition-colors"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 <div>
                   <label className="label">Precio <span className="text-gold-500">*</span></label>

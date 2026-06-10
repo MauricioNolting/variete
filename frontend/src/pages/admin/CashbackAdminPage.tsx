@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, ToggleLeft, ToggleRight, X, Settings, CalendarRange } from 'lucide-react';
+import { Plus, Trash2, ToggleLeft, ToggleRight, X, Settings, CalendarRange, Timer } from 'lucide-react';
 import api from '../../utils/api';
 import { CashbackRule, CashbackRuleType, Category, Product, GlobalCashbackConfig } from '../../types';
 import { formatCurrency, CASHBACK_TYPE_LABELS } from '../../utils/format';
@@ -18,11 +18,12 @@ interface RuleForm {
   specificDates: string;
   categoryId: string;
   productId: string;
+  expiryDays: string;
 }
 
 const emptyForm: RuleForm = {
   type: 'GLOBAL', percentage: '', minAmount: '', startDate: '', endDate: '',
-  specificDates: '', categoryId: '', productId: '',
+  specificDates: '', categoryId: '', productId: '', expiryDays: '',
 };
 
 function formatShortDate(d: string | Date | null | undefined): string {
@@ -72,6 +73,7 @@ export default function CashbackAdminPage() {
       specificDates: form.specificDates ? form.specificDates.split(',').map((d) => d.trim()) : undefined,
       categoryId: form.categoryId ? Number(form.categoryId) : undefined,
       productId: form.productId ? Number(form.productId) : undefined,
+      expiryDays: form.expiryDays ? Number(form.expiryDays) : undefined,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['cashback-rules'] });
@@ -218,6 +220,11 @@ export default function CashbackAdminPage() {
                   {validity && (
                     <p className="text-xs text-amber-500 flex items-center gap-1 mt-0.5">
                       <CalendarRange size={11} /> {validity}
+                    </p>
+                  )}
+                  {rule.expiryDays && (
+                    <p className="text-xs text-sky-400 flex items-center gap-1 mt-0.5">
+                      <Timer size={11} /> Saldo vence a los {rule.expiryDays} días de la compra
                     </p>
                   )}
                   <span className={rule.isActive ? 'badge-green mt-1' : 'badge-red mt-1'}>
@@ -386,6 +393,28 @@ export default function CashbackAdminPage() {
                   </div>
                 </div>
               )}
+
+              {/* ── Expiry days for earned cashback ──────────────────────────── */}
+              <div className="border border-dark-700 rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Timer size={15} className="text-sky-400" />
+                  <p className="text-sm font-medium text-dark-200">Vencimiento del saldo ganado <span className="text-dark-500 font-normal">(opcional)</span></p>
+                </div>
+                <p className="text-xs text-dark-500 -mt-1">
+                  El beneficio que acumula el cliente en cada compra vencerá a los N días desde esa compra.
+                  Si se deja vacío, se usa la configuración global del programa (o sin vencimiento si tampoco está configurada).
+                </p>
+                <div>
+                  <label className="label">Días de vigencia del saldo</label>
+                  <input
+                    type="number"
+                    value={form.expiryDays}
+                    onChange={(e) => setForm((f) => ({ ...f, expiryDays: e.target.value }))}
+                    placeholder="Ej: 30 (dejar vacío para usar configuración global)"
+                    min="1"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="p-5 border-t border-dark-800 flex gap-3">

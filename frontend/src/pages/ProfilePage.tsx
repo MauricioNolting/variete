@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle, Clock, Star, Lock, CalendarClock } from 'lucide-react';
+import { User, Gift, Package, TrendingUp, ChevronDown, ChevronUp, CheckCircle, Clock, Star, Lock, CalendarClock } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { Order, CashbackTransaction } from '../types';
-import { formatCurrency, formatDate, formatDateLong, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../utils/format';
+import { formatCurrency, formatDate, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../utils/format';
 
 interface TierData {
   tier: 'BRONZE' | 'SILVER' | 'GOLD';
@@ -42,6 +42,15 @@ export default function ProfilePage() {
   const { client } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'cashback'>('orders');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const expirationsRef = useRef<HTMLDivElement>(null);
+
+  const handleViewExpirations = () => {
+    setActiveTab('cashback');
+    // Esperar a que la pestaña renderice la sección antes de hacer scroll
+    setTimeout(() => {
+      expirationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+  };
 
   const { data: tierData } = useQuery<TierData>({
     queryKey: ['my-tier'],
@@ -69,7 +78,6 @@ export default function ProfilePage() {
 
   const transactions: CashbackTransaction[] = cashbackData?.transactions || [];
   const effectiveBalance = cashbackData?.effectiveBalance ?? client?.cashbackBalance ?? 0;
-  const nextExpiry = cashbackData?.nextExpiry;
   const pendingExpirations: { expiresAt: string; amount: number; ordersCount: number }[] =
     cashbackData?.pendingExpirations || [];
 
@@ -161,11 +169,13 @@ export default function ProfilePage() {
               <p className="text-xs text-dark-500 uppercase tracking-wide">Saldo de beneficios disponible</p>
               <p className="text-3xl font-black text-emerald-400">{formatCurrency(effectiveBalance)}</p>
               <p className="text-xs text-dark-500 mt-0.5">Acumulado histórico: {formatCurrency(client.totalCashbackEarned)}</p>
-              {nextExpiry && (
-                <p className="text-xs text-amber-500 mt-0.5">
-                  <AlertCircle size={10} className="inline mr-1" />
-                  Próximo vencimiento: {formatDateLong(nextExpiry)}
-                </p>
+              {pendingExpirations.length > 0 && (
+                <button
+                  onClick={handleViewExpirations}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-950/30 hover:bg-amber-950/50 border border-amber-700/30 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  <CalendarClock size={13} /> Ver vencimiento de beneficios
+                </button>
               )}
             </div>
           </div>
@@ -313,9 +323,10 @@ export default function ProfilePage() {
           {/* ── Saldos a vencer ─────────────────────────────────────── */}
           {pendingExpirations.length > 0 && (
             <motion.div
+              ref={expirationsRef}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="card p-5 space-y-3"
+              className="card p-5 space-y-3 scroll-mt-20"
             >
               <div className="flex items-center gap-2">
                 <CalendarClock size={18} className="text-amber-400" />
@@ -437,6 +448,14 @@ export default function ProfilePage() {
                     {t.orderId && <span className="text-dark-500"> — Pedido #{t.orderId}</span>}
                   </p>
                   <p className="text-xs text-dark-500">{formatDate(t.createdAt)} · {t.ruleDescription}</p>
+                  {t.type === 'EARNED' && (
+                    <p className={`text-xs mt-0.5 flex items-center gap-1 ${t.expiresAt ? 'text-amber-500' : 'text-dark-600'}`}>
+                      <CalendarClock size={10} />
+                      {t.expiresAt
+                        ? `Vence el ${formatDate(t.expiresAt)}`
+                        : 'Sin vencimiento'}
+                    </p>
+                  )}
                 </div>
                 <span className={`font-bold flex-shrink-0 ml-4 ${t.type === 'EARNED' ? 'text-emerald-400' : 'text-red-400'}`}>
                   {t.type === 'EARNED' ? '+' : '-'}{formatCurrency(t.amount)}
