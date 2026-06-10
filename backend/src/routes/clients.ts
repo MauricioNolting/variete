@@ -118,12 +118,34 @@ router.post('/:id/adjust-cashback', authenticateToken, requireAdmin, async (req,
   }
 });
 
-// Client: get my tier (calculated dynamically)
+// Client: get my tier (calculated dynamically) + detect tier change vs last notified
 router.get('/me/tier', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { calculateClientTier } = await import('../utils/tiers');
     const tier = await calculateClientTier(req.userId!);
-    res.json(tier);
+
+    // Detectar ascenso / descenso comparando con la última categoría notificada
+    const client = await prisma.client.findUnique({
+      where: { id: req.userId },
+      select: { notifiedTier: true },
+    });
+    const rank: Record<string, number> = { BRONZE: 0, SILVER: 1, GOLD: 2 };
+    const previousTier = client?.notifiedTier ?? null;
+    let tierChanged: 'UP' | 'DOWN' | null = null;
+
+    if (previousTier && previousTier !== tier.tier) {
+      tierChanged = rank[tier.tier] > rank[previousTier] ? 'UP' : 'DOWN';
+    }
+
+    // Persistir la categoría actual como "notificada" para que el cartel aparezca solo una vez
+    if (previousTier !== tier.tier) {
+      await prisma.client.update({
+        where: { id: req.userId },
+        data: { notifiedTier: tier.tier },
+      }).catch(() => {});
+    }
+
+    res.json({ ...tier, tierChanged, previousTier: tierChanged ? previousTier : undefined });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al calcular la categoría.' });

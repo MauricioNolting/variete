@@ -9,6 +9,7 @@ import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { Order, CashbackTransaction } from '../types';
 import { formatCurrency, formatDate, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../utils/format';
+import TierChangeCelebration from '../components/TierChangeCelebration';
 
 interface TierData {
   tier: 'BRONZE' | 'SILVER' | 'GOLD';
@@ -22,6 +23,8 @@ interface TierData {
   graceThreshold?: number;
   tierValidUntil?: string;
   message?: string;
+  tierChanged?: 'UP' | 'DOWN' | null;
+  previousTier?: 'BRONZE' | 'SILVER' | 'GOLD';
 }
 
 interface TierBenefit {
@@ -104,6 +107,13 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      {/* Cartel de cambio de categoría (ascenso / descenso) */}
+      <TierChangeCelebration
+        change={tierData?.tierChanged}
+        tier={tierData?.tier}
+        previousTier={tierData?.previousTier}
+      />
+
       {/* Profile header */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="card p-6">
         <div className="flex items-start gap-4">

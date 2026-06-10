@@ -6,12 +6,15 @@ import api from '../utils/api';
 import { useAuthStore } from '../store/auth';
 import { CashbackRule, City } from '../types';
 import { formatCurrency, formatDateLong, daysUntil, CASHBACK_TYPE_LABELS } from '../utils/format';
+import TierChangeCelebration from '../components/TierChangeCelebration';
 
 interface TierData {
   tier: 'BRONZE' | 'SILVER' | 'GOLD';
   label: string;
   emoji: string;
   color: string;
+  tierChanged?: 'UP' | 'DOWN' | null;
+  previousTier?: 'BRONZE' | 'SILVER' | 'GOLD';
 }
 
 interface TierBenefit {
@@ -60,6 +63,13 @@ export default function HomePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-10">
+      {/* Cartel de cambio de categoría (ascenso / descenso) */}
+      <TierChangeCelebration
+        change={tierData?.tierChanged}
+        tier={tierData?.tier}
+        previousTier={tierData?.previousTier}
+      />
+
       {/* Hero */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}

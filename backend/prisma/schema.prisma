@@ -27,6 +27,7 @@ model Client {
   totalCashbackEarned Float                 @default(0)
   tierValidUntil      DateTime?
   lastSeenAt          DateTime?
+  notifiedTier        String?
   createdAt           DateTime              @default(now())
   city                City?                 @relation(fields: [cityId], references: [id])
   orders              Order[]
