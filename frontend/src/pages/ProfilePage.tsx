@@ -450,28 +450,38 @@ export default function ProfilePage() {
                 <Gift size={40} className="mx-auto mb-3 opacity-30" />
                 <p>Aún no hay transacciones de beneficios registradas.</p>
               </div>
-            ) : transactions.map((t) => (
-              <div key={t.id} className="card p-4 flex items-center justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-dark-100">
-                    {t.type === 'EARNED' ? 'Beneficio acumulado' : 'Saldo utilizado'}
-                    {t.orderId && <span className="text-dark-500"> — Pedido #{t.orderId}</span>}
-                  </p>
-                  <p className="text-xs text-dark-500">{formatDate(t.createdAt)} · {t.ruleDescription}</p>
-                  {t.type === 'EARNED' && (
-                    <p className={`text-xs mt-0.5 flex items-center gap-1 ${t.expiresAt ? 'text-amber-500' : 'text-dark-600'}`}>
-                      <CalendarClock size={10} />
-                      {t.expiresAt
-                        ? `Vence el ${formatDate(t.expiresAt)}`
-                        : 'Sin vencimiento'}
+            ) : transactions.map((t) => {
+              const label = t.type === 'EARNED' ? 'Beneficio acumulado'
+                : t.type === 'EXPIRED' ? 'Vencimiento de saldo'
+                : 'Saldo utilizado';
+              const amountColor = t.type === 'EARNED' ? 'text-emerald-400'
+                : t.type === 'EXPIRED' ? 'text-amber-400'
+                : 'text-red-400';
+              const sign = t.type === 'EARNED' ? '+' : '-';
+              return (
+                <div key={t.id} className="card p-4 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-dark-100 flex items-center gap-1.5">
+                      {t.type === 'EXPIRED' && <CalendarClock size={13} className="text-amber-400 flex-shrink-0" />}
+                      {label}
+                      {t.orderId && <span className="text-dark-500"> — Pedido #{t.orderId}</span>}
                     </p>
-                  )}
+                    <p className="text-xs text-dark-500">{formatDate(t.createdAt)} · {t.ruleDescription}</p>
+                    {t.type === 'EARNED' && (
+                      <p className={`text-xs mt-0.5 flex items-center gap-1 ${t.expiresAt ? 'text-amber-500' : 'text-dark-600'}`}>
+                        <CalendarClock size={10} />
+                        {t.expiresAt
+                          ? `Vence el ${formatDate(t.expiresAt)}`
+                          : 'Sin vencimiento'}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`font-bold flex-shrink-0 ml-4 ${amountColor}`}>
+                    {sign}{formatCurrency(t.amount)}
+                  </span>
                 </div>
-                <span className={`font-bold flex-shrink-0 ml-4 ${t.type === 'EARNED' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {t.type === 'EARNED' ? '+' : '-'}{formatCurrency(t.amount)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

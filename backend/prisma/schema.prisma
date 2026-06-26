@@ -129,6 +129,7 @@ model CashbackTransaction {
 enum CashbackTransactionType {
   EARNED
   USED
+  EXPIRED
 }
 
 model TierBenefit {

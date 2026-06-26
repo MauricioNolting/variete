@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middlewares/auth';
 import { calculateCashback } from '../utils/cashback';
 import { calculateClientTier } from '../utils/tiers';
+import { processClientCashbackExpiry } from '../utils/cashbackExpiry';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -52,46 +53,17 @@ router.post('/calculate', authenticateToken, async (req: AuthRequest, res: Respo
 // Client: get my cashback transactions + real available balance + pending expirations
 router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
-    const now = new Date();
+    // Procesar vencimientos (genera transacciones EXPIRED y ajusta el saldo si corresponde)
+    const { balance, liveLots } = await processClientCashbackExpiry(req.userId!);
+
+    // Historial completo (ya incluye los EXPIRED recién creados)
     const transactions = await prisma.cashbackTransaction.findMany({
       where: { clientId: req.userId },
       include: { order: { select: { id: true, createdAt: true, totalAmount: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
-    // Total de saldo consumido (USED)
-    const totalUsed = transactions
-      .filter((t) => t.type === 'USED')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    // Lotes EARNED activos (no vencidos). Cada lote es consumible.
-    // Orden de consumo FIFO: primero el que vence antes; los que no vencen, al final.
-    const earnedLots = transactions
-      .filter((t) => t.type === 'EARNED' && (!t.expiresAt || t.expiresAt > now))
-      .map((t) => ({ amount: t.amount, expiresAt: t.expiresAt, createdAt: t.createdAt }))
-      .sort((a, b) => {
-        if (a.expiresAt && b.expiresAt) return a.expiresAt.getTime() - b.expiresAt.getTime();
-        if (a.expiresAt) return -1;  // a vence, b no → a primero
-        if (b.expiresAt) return 1;   // b vence, a no → b primero
-        return a.createdAt.getTime() - b.createdAt.getTime(); // ambos sin vencimiento → más antiguo primero
-      });
-
-    // Consumir el saldo usado, empezando por los lotes que vencen antes
-    let toConsume = totalUsed;
-    for (const lot of earnedLots) {
-      if (toConsume <= 0) break;
-      const consume = Math.min(lot.amount, toConsume);
-      lot.amount -= consume;
-      toConsume -= consume;
-    }
-
-    // Lotes que aún tienen saldo disponible
-    const liveLots = earnedLots.filter((l) => l.amount > 0.001);
-
-    // Saldo efectivo = suma de los lotes vivos (incluye los que no vencen)
-    const effectiveBalance = liveLots.reduce((sum, l) => sum + l.amount, 0);
-
-    // Saldos a vencer: solo lotes vivos que tienen fecha de vencimiento, agrupados por fecha
+    // Saldos a vencer: lotes vivos con fecha de vencimiento, agrupados por fecha
     const grouped: Record<string, { expiresAt: Date; amount: number; ordersCount: number }> = {};
     for (const lot of liveLots) {
       if (!lot.expiresAt) continue;
@@ -105,14 +77,13 @@ router.get('/my/transactions', authenticateToken, async (req: AuthRequest, res: 
     const pendingExpirations = Object.values(grouped)
       .sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
 
-    // Próximo vencimiento = el lote vivo que vence antes
     const nextExpiry = pendingExpirations.length > 0
       ? { expiresAt: pendingExpirations[0].expiresAt }
       : null;
 
     res.json({
       transactions,
-      effectiveBalance: Math.max(0, effectiveBalance),
+      effectiveBalance: balance,   // saldo real disponible (consistente con lo que puede gastar)
       nextExpiry,
       pendingExpirations,
     });

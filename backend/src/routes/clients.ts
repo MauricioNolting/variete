@@ -155,6 +155,10 @@ router.get('/me/tier', authenticateToken, async (req: AuthRequest, res: Response
 // Client: get my profile
 router.get('/me/profile', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
+    // Procesar vencimientos para que el saldo mostrado esté siempre actualizado
+    const { processClientCashbackExpiry } = await import('../utils/cashbackExpiry');
+    await processClientCashbackExpiry(req.userId!).catch(() => {});
+
     const client = await prisma.client.findUnique({
       where: { id: req.userId },
       include: { city: true },

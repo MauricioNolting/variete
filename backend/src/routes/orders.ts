@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken, requireAdmin, AuthRequest } from '../middlewares/auth';
 import { calculateCashback } from '../utils/cashback';
 import { calculateClientTier } from '../utils/tiers';
+import { processClientCashbackExpiry } from '../utils/cashbackExpiry';
 import { sendWhatsAppToAdmin, sendOrderConfirmationEmail, sendOrderStatusEmail } from '../utils/notifications';
 
 const router = Router();
@@ -18,6 +19,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 
   try {
+    // Procesar vencimientos antes de leer el saldo, para que no se pueda usar saldo vencido
+    await processClientCashbackExpiry(req.userId!).catch(() => {});
+
     const client = await prisma.client.findUnique({
       where: { id: req.userId },
       include: { city: true },

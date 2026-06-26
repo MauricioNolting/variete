@@ -82,7 +82,7 @@ export interface CashbackTransaction {
   clientId: number;
   orderId?: number;
   amount: number;
-  type: 'EARNED' | 'USED';
+  type: 'EARNED' | 'USED' | 'EXPIRED';
   ruleDescription?: string;
   expiresAt?: string | null;
   createdAt: string;
