@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, Clock, CheckCircle, Gift } from 'lucide-react';
 import api from '../utils/api';
@@ -14,6 +14,7 @@ import CashbackCelebration from '../components/CashbackCelebration';
 export default function CheckoutPage() {
   const { items, getSubtotal, clearCart, useCashback, cashbackToUse, setCashbackUsage } = useCartStore();
   const { client, updateClient } = useAuthStore();
+  const qc = useQueryClient();
   const [selectedDate, setSelectedDate] = useState('');
   const [timeRange, setTimeRange] = useState('');
   const [notes, setNotes] = useState('');
@@ -56,6 +57,11 @@ export default function CheckoutPage() {
       if (client) {
         updateClient({ ...client, cashbackBalance: res.data.newCashbackBalance });
       }
+      // Refrescar los datos del perfil para que el saldo, pedidos y categoría
+      // se actualicen sin tener que recargar la página manualmente
+      qc.invalidateQueries({ queryKey: ['my-cashback-balance'] });
+      qc.invalidateQueries({ queryKey: ['my-orders'] });
+      qc.invalidateQueries({ queryKey: ['my-tier'] });
       if (res.data.order.cashbackEarned > 0) {
         setCelebrationAmount(res.data.order.cashbackEarned);
         setShowCelebration(true);
